@@ -14,8 +14,8 @@ class DocumentCleaner:
     year     — reporting year (int)
     company  — company name
     doc_type — report type (ecovadis, vsme, …)
-  """ 
-  @component.output_types(document=list[Document])
+  """
+  @component.output_types(documents=list[Document])
   def run(self, documents: list[Document]) -> dict:
     cleaned = []
     for doc in documents:
