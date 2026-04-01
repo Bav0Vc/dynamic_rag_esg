@@ -1,4 +1,6 @@
 import os
+import time
+import json
 import pandas as pd
 from haystack import Pipeline
 from dotenv import load_dotenv
@@ -48,7 +50,10 @@ llm_models = [
   }
 ]
 
-question = "Wat is de naam en het adres van de school van Bavo Vancoppernolle?"
+# Load golden set
+with open("data/golden_set/questions.json", "r", encoding="utf-8") as f:
+  golden_dataset = json.load(f)
+
 test_results = []
 
 for chunker_class in [RecursiveSplitter, FixedSizeWordSplitter, SemanticEmbeddingChunker]:
@@ -118,28 +123,66 @@ for chunker_class in [RecursiveSplitter, FixedSizeWordSplitter, SemanticEmbeddin
       query_pipe.connect("retriever.documents", "prompt_builder.documents")
       query_pipe.connect("prompt_builder", "llm")
 
-      try:
-        response = query_pipe.run({
-            "text_embedder": {"text": question},
-            "prompt_builder": {"question": question}
-          },
-          include_outputs_from={"retriever"}
-        )
+      for item in golden_dataset:
+        q = item["question"]
+        try:
+          start_time = time.time()
+          response = query_pipe.run({
+              "text_embedder": {"text": q},
+              "prompt_builder": {"question": q}
+            },
+            include_outputs_from={"retriever"}
+          )
+          end_time = time.time()
+          latency = end_time - start_time
 
-        reply = response["llm"]["replies"][0]
-        final_answer = reply.content if hasattr(reply, 'content') else reply
-        # retrieved_documents = [doc.content for doc in response["retriever"]["documents"]]
+          reply = response["llm"]["replies"][0]
+          
+          # Handle ChatMessage objects
+          if hasattr(reply, 'content'):
+            # Mistral/OpenAI might return a ChatMessage with a .content list or string
+            if isinstance(reply.content, list):
+              final_answer = "\n".join([str(c) if getattr(c, "text", None) is None else c.text for c in reply.content])
+            else:
+              final_answer = reply.content
+          elif hasattr(reply, 'text'):
+            final_answer = reply.text
+          else:
+            final_answer = str(reply)
+          
+          # Clean up any leftover ChatMessage formatting just in case
+          if not isinstance(final_answer, str):
+            final_answer = str(final_answer)
 
-        test_results.append({
-          "Configuration": config_name,
-          "Chunker": chunker.__class__.__name__,
-          "Embedder": embedder_model_name,
-          "LLM": llm_config["name"],
-          "Answer": final_answer,
-          # "contexts": retrieved_documents
-        })
-      except Exception as e:
-        print(f"Error querying {config_name}: {e}")
+          retrieved_docs = response["retriever"]["documents"]
+          contexts = [doc.content for doc in retrieved_docs]
+          
+          # Attempt to extract token usage
+          usage = reply.meta.get("usage", {}) if hasattr(reply, 'meta') else {}
+          prompt_tokens = usage.get("prompt_tokens", 0)
+          completion_tokens = usage.get("completion_tokens", 0)
+
+          test_results.append({
+            "id": item["id"],
+            "question": q,
+            "ground_truth": item["ground_truth"],
+            "expected_source": item["expected_source"],
+            "Configuration": config_name,
+            "Chunker": chunker.__class__.__name__,
+            "Embedder": embedder_model_name,
+            "LLM": llm_config["name"],
+            "contexts": contexts,
+            "answer": final_answer,
+            "latency": latency,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens
+          })
+        except Exception as e:
+          print(f"Error querying {config_name} with question '{q}': {e}")
+
+output_file = "./evaluation/results/evaluation_dataset.json"
+with open(output_file, "w", encoding="utf-8") as f:
+  json.dump(test_results, f, ensure_ascii=False, indent=2)
 
 pd.DataFrame(test_results).to_csv("./evaluation/results/rag_benchmark_results.csv", index=False)
-print("Querying complete. Results saved to rag_benchmark_results.csv")
+print("Querying complete. Results saved to evaluation_dataset.json and rag_benchmark_results.csv")

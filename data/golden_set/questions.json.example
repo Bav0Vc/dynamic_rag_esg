@@ -1,9 +1,0 @@
-[
-  {
-    "id": "GS-001",
-    "question": "Hoeveel procent van de energie van Turtle Srl kwam uit hernieuwbare bronnen in 2023?",
-    "ground_truth": "In 2023 haalde Turtle Srl 42% van haar energie uit hernieuwbare bronnen.",
-    "source_document": "turtle_2023_ecovadis.pdf",
-    "esg_pillar": "Environment"
-  }
-]

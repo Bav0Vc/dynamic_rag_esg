@@ -1,0 +1,14 @@
+[
+  {
+    "id": "GS-001",
+    "question": "Wat is de naam van de school van Bavo Vancoppernolle?",
+    "ground_truth": "Hogent",
+    "expected_source": "DIT_TI_Stagedossier_buitenland_EN_2025_26_BV.pdf"
+  },
+  {
+    "id": "GS-002",
+    "question": "Wat is het adres van de school van Bavo Vancoppernolle?",
+    "ground_truth": "Valentin Vaerwyckweg 1, 9000 Gent, Belgium",
+    "expected_source": "DIT_TI_Stagedossier_buitenland_EN_2025_26_BV.pdf"
+  }
+]
