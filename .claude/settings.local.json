@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python -c \"import hypster; print\\(hypster.__version__\\); help\\(hypster\\)\")",
+      "Bash(.venv/Scripts/pip install:*)"
+    ]
+  }
+}

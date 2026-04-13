@@ -4,7 +4,6 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors import EmbeddingBasedDocumentSplitter
 
 # Semantic chunking
-
 @component
 class SemanticEmbeddingChunker:
   def __init__(

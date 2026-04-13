@@ -68,13 +68,13 @@ def evaluate_results():
     print(f"Evaluating config: {config}")
     subset = df[df["Configuration"] == config]
     
-    # We need to construct Ragas format items
+    # Construct Ragas format items
     samples = []
     for _, row in subset.iterrows():
       sample = SingleTurnSample(
         user_input=row["question"],
         response=row["answer"],
-        retrieved_contexts=row["contexts"], #[:10], # limit contexts to top 10 => save context window and cost
+        retrieved_contexts=row["contexts"],
         reference=row["ground_truth"]
       )
       samples.append(sample)
@@ -82,7 +82,7 @@ def evaluate_results():
     dataset = EvaluationDataset(samples=samples)
     
     try:
-      # Using Mistral as the evaluator judge
+      # Using Mistral as evaluator judge
       metrics = [Faithfulness(), AnswerRelevancy(), ContextRecall(), ContextPrecision()]
       
       ragas_result = evaluate(
@@ -92,7 +92,6 @@ def evaluate_results():
         embeddings=evaluator_embeddings
       )
       
-      # The result object acts like a dict for mean scores, or you can extract individual scores
       scores_df = ragas_result.to_pandas()
       
       leaderboard.append({
@@ -113,10 +112,9 @@ def evaluate_results():
 
   df_leaderboard = pd.DataFrame(leaderboard)
   os.makedirs("evaluation/results", exist_ok=True)
-  df_leaderboard.to_csv("evaluation/results/metrics_leaderboard.csv", index=False)
+  df_leaderboard.to_csv("evaluation/results/metrics_leaderboard.csv", index=False, sep=";")
   print("Leaderboard generation complete. Saved to evaluation/results/metrics_leaderboard.csv")
   
-  # print summary
   print("\n--- Leaderboard Summary ---")
   print(df_leaderboard)
 

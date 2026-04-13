@@ -24,9 +24,7 @@ class DocumentCleaner:
       cleaned.append(Document(content=text, meta=meta))
     return {"documents": cleaned}
 
-  # ---------------------------------------------------------
   # Private helpers
-  # --------------------------------------------------------- 
   def _clean_text(self, text: str) -> str:
     # Collapse 3+ consecutive newlines to 2
     text = re.sub(r"\n{3,}", "\n\n", text)

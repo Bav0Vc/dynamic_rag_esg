@@ -1,188 +1,154 @@
 import os
+import sys
 import time
-import json
-import pandas as pd
-from haystack import Pipeline
+
 from dotenv import load_dotenv
-# Embedding
-from haystack.components.embedders import OpenAIDocumentEmbedder, SentenceTransformersDocumentEmbedder
-from haystack.components.embedders import OpenAITextEmbedder, SentenceTransformersTextEmbedder
-# Chunking
-from components.chunking.fixed import FixedSizeWordSplitter
-from components.chunking.recursive import RecursiveSplitter
-from components.chunking.semantic import SemanticEmbeddingChunker
-# Document Store & Retriever
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
-from haystack.utils import Secret
-# Prompts & Generators
+from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
+from haystack.components.embedders import OpenAITextEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators import OpenAIGenerator
-from haystack_integrations.components.generators.mistral import MistralChatGenerator
+from haystack.utils import Secret
 from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+from haystack_integrations.components.generators.mistral import MistralChatGenerator
+from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+
+_PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
+if _PIPELINE_DIR not in sys.path:
+    sys.path.insert(0, _PIPELINE_DIR)
 
 load_dotenv()
 
-chunking_strategies = [
-  RecursiveSplitter(),
-  FixedSizeWordSplitter(),
-  SemanticEmbeddingChunker()
-]
+_PROMPT_TEMPLATE = """Beantwoord de vraag op basis van de context. \
+Geef ook de filename van het document waarin de opgehaalde chunk staat, op een newline na het antwoord op de vraag.
+Context:
+{% for doc in documents %}
+  Bestand: {{ doc.meta['file_path'] }}
+  Inhoud: {{ doc.content }}
+{% endfor %}
+Vraag: {{question}}"""
 
-embedding_models = [
-  OpenAIDocumentEmbedder(model="text-embedding-3-large"),
-  SentenceTransformersDocumentEmbedder(model="BAAI/bge-m3"),
-  SentenceTransformersDocumentEmbedder(model="intfloat/multilingual-e5-large-instruct")
-]
+_EMBEDDING_DIMS = {
+    "BAAI/bge-m3": 1024,
+    "text-embedding-3-large": 3072,
+    "intfloat/multilingual-e5-large-instruct": 1024,
+}
 
-llm_models = [
-  {
-    "name": "GPT-4o-mini",
-    "instance": OpenAIGenerator(model="gpt-4o-mini")
-  },
-  {
-    "name": "Gemini-2.5-Flash",
-    "instance": GoogleGenAIChatGenerator(model="gemini-2.5-flash")
-  },
-  {
-    "name": "Mistral-Large-2",
-    "instance": MistralChatGenerator(model="mistral-large-2407")
-  }
-]
 
-# Load golden set
-with open("data/golden_set/questions.json", "r", encoding="utf-8") as f:
-  golden_dataset = json.load(f)
+def _extract_reply_text(reply) -> str:
+    if hasattr(reply, "content"):
+        if isinstance(reply.content, list):
+            return "\n".join(
+                c.text if getattr(c, "text", None) is not None else str(c)
+                for c in reply.content
+            )
+        return reply.content if isinstance(reply.content, str) else str(reply.content)
+    if hasattr(reply, "text"):
+        return reply.text
+    return str(reply)
 
-test_results = []
 
-for chunker_class in [RecursiveSplitter, FixedSizeWordSplitter, SemanticEmbeddingChunker]:
-  for embedder_config in [
-    {"class": SentenceTransformersDocumentEmbedder, "kwargs": {"model": "BAAI/bge-m3"}, "text_class": SentenceTransformersTextEmbedder},
-    {"class": OpenAIDocumentEmbedder, "kwargs": {"model": "text-embedding-3-large"}, "text_class": OpenAITextEmbedder},
-    {"class": SentenceTransformersDocumentEmbedder, "kwargs": {"model": "intfloat/multilingual-e5-large-instruct"}, "text_class": SentenceTransformersTextEmbedder}
-  ]:
-    for llm_config in llm_models:
-      chunker = chunker_class()
-      embedder_model_name = embedder_config["kwargs"]["model"]
-      
-      config_name = f"{chunker.__class__.__name__} | {embedder_model_name} | {llm_config['name']}"
-      print(f"Running config: {config_name}")
+def _build_text_embedder(embedder_model: str):
+    if embedder_model == "text-embedding-3-large":
+        return OpenAITextEmbedder(model=embedder_model)
+    return SentenceTransformersTextEmbedder(model=embedder_model)
 
-      collection_name = f"{chunker.__class__.__name__}_{embedder_model_name}".replace("/", "-").lower()
 
-      if "bge-m3" in embedder_model_name:
-        dim = 1024
-      elif "text-embedding-3-large" in embedder_model_name:
-        dim = 3072
-      elif "multilingual-e5-large-instruct" in embedder_model_name:
-        dim = 1024
-      else:
-        dim = 768
+def _build_llm(llm_name: str):
+    if llm_name == "GPT-4o-mini":
+        return OpenAIGenerator(model="gpt-4o-mini")
+    if llm_name == "Gemini-2.5-Flash":
+        return GoogleGenAIChatGenerator(model="gemini-2.5-flash")
+    if llm_name == "Mistral-Large-2":
+        return MistralChatGenerator(model="mistral-large-2407")
+    raise ValueError(f"Unknown LLM: {llm_name!r}")
 
-      document_store = QdrantDocumentStore(
+
+def run_query_pipeline(config: dict, golden_dataset: list) -> list:
+    """Run a single RAG configuration against the golden dataset.
+
+    Args:
+        config: Instantiated Hypster config dict with keys
+                ``chunking``, ``embedding``, and ``llm``.
+        golden_dataset: List of dicts, each with keys ``id``, ``question``,
+                        ``ground_truth``, and ``expected_source``.
+
+    Returns:
+        List of result dicts — one entry per (question, config) pair.
+    """
+    chunker_name: str = config["chunking"]["chunker_name"]
+    embedder_model: str = config["embedding"]["model"]
+    llm_name: str = config["llm"]["name"]
+
+    config_label = f"{chunker_name} | {embedder_model} | {llm_name}"
+    print(f"Running config: {config_label}")
+
+    collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
+    dim = _EMBEDDING_DIMS.get(embedder_model, 768)
+
+    document_store = QdrantDocumentStore(
         url=os.getenv("QDRANT_URL"),
         api_key=Secret.from_env_var("QDRANT_API_KEY"),
         index=collection_name,
         embedding_dim=dim,
-        recreate_index=False 
-      )
+        recreate_index=False,
+    )
 
-      try:
-        out = document_store.count_documents()
-        if out == 0:
-          print(f"  -> Skipping. Collection {collection_name} is empty. Run indexing first.")
-          continue
-      except Exception as e:
-        print(f"  -> Could not connect or find collection {collection_name}. Skipping. {e}")
-        continue
+    try:
+        count = document_store.count_documents()
+        if count == 0:
+            print(f"  -> Skipping. Collection '{collection_name}' is empty.")
+            return []
+    except Exception as exc:
+        print(f"  -> Could not connect to collection '{collection_name}'. Skipping. {exc}")
+        return []
 
-      # Query embedding
-      text_embedder = embedder_config["text_class"](model=embedder_model_name)
+    text_embedder = _build_text_embedder(embedder_model)
+    llm_instance = _build_llm(llm_name)
 
-      if llm_config["name"] == "GPT-4o-mini":
-        llm_instance = OpenAIGenerator(model="gpt-4o-mini")
-      elif llm_config["name"] == "Gemini-2.5-Flash":
-        llm_instance = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
-      else:
-        llm_instance = MistralChatGenerator(model="mistral-large-2407")
+    query_pipe = Pipeline()
+    query_pipe.add_component("text_embedder", text_embedder)
+    query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
+    query_pipe.add_component("prompt_builder", PromptBuilder(template=_PROMPT_TEMPLATE))
+    query_pipe.add_component("llm", llm_instance)
 
-      query_pipe = Pipeline()
-      query_pipe.add_component("text_embedder", text_embedder)
-      query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
-      query_pipe.add_component("prompt_builder", PromptBuilder(template="""Beantwoord de vraag op basis van de context. Geef ook de filename van het document waarin de opgehaalde chunk staat, op een newline na het antwoord op de vraag.
-      Context: 
-      {% for doc in documents %} 
-        Bestand: {{ doc.meta['file_path'] }}
-        Inhoud: {{ doc.content }} 
-      {% endfor %}
-      Vraag: {{question}}"""))
-      query_pipe.add_component("llm", llm_instance)
+    query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
+    query_pipe.connect("retriever.documents", "prompt_builder.documents")
+    query_pipe.connect("prompt_builder", "llm")
 
-      query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
-      query_pipe.connect("retriever.documents", "prompt_builder.documents")
-      query_pipe.connect("prompt_builder", "llm")
-
-      for item in golden_dataset:
+    results = []
+    for item in golden_dataset:
         q = item["question"]
         try:
-          start_time = time.time()
-          response = query_pipe.run({
-              "text_embedder": {"text": q},
-              "prompt_builder": {"question": q}
-            },
-            include_outputs_from={"retriever"}
-          )
-          end_time = time.time()
-          latency = end_time - start_time
+            start_time = time.time()
+            response = query_pipe.run(
+                {"text_embedder": {"text": q}, "prompt_builder": {"question": q}},
+                include_outputs_from={"retriever"},
+            )
+            latency = time.time() - start_time
 
-          reply = response["llm"]["replies"][0]
-          
-          # Handle ChatMessage objects
-          if hasattr(reply, 'content'):
-            # Mistral/OpenAI might return a ChatMessage with a .content list or string
-            if isinstance(reply.content, list):
-              final_answer = "\n".join([str(c) if getattr(c, "text", None) is None else c.text for c in reply.content])
-            else:
-              final_answer = reply.content
-          elif hasattr(reply, 'text'):
-            final_answer = reply.text
-          else:
-            final_answer = str(reply)
-          
-          # Clean up any leftover ChatMessage formatting just in case
-          if not isinstance(final_answer, str):
-            final_answer = str(final_answer)
+            reply = response["llm"]["replies"][0]
+            final_answer = _extract_reply_text(reply)
 
-          retrieved_docs = response["retriever"]["documents"]
-          contexts = [doc.content for doc in retrieved_docs]
-          
-          # Attempt to extract token usage
-          usage = reply.meta.get("usage", {}) if hasattr(reply, 'meta') else {}
-          prompt_tokens = usage.get("prompt_tokens", 0)
-          completion_tokens = usage.get("completion_tokens", 0)
+            contexts = [doc.content for doc in response["retriever"]["documents"]]
+            usage = reply.meta.get("usage", {}) if hasattr(reply, "meta") else {}
 
-          test_results.append({
-            "id": item["id"],
-            "question": q,
-            "ground_truth": item["ground_truth"],
-            "expected_source": item["expected_source"],
-            "Configuration": config_name,
-            "Chunker": chunker.__class__.__name__,
-            "Embedder": embedder_model_name,
-            "LLM": llm_config["name"],
-            "contexts": contexts,
-            "answer": final_answer,
-            "latency": latency,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens
-          })
-        except Exception as e:
-          print(f"Error querying {config_name} with question '{q}': {e}")
+            results.append({
+                "id": item["id"],
+                "question": q,
+                "ground_truth": item["ground_truth"],
+                "expected_source": item["expected_source"],
+                "Configuration": config_label,
+                "Chunker": chunker_name,
+                "Embedder": embedder_model,
+                "LLM": llm_name,
+                "contexts": contexts,
+                "answer": final_answer,
+                "latency": latency,
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+            })
+        except Exception as exc:
+            print(f"  Error on '{config_label}' / question '{q}': {exc}")
 
-output_file = "./evaluation/results/evaluation_dataset.json"
-with open(output_file, "w", encoding="utf-8") as f:
-  json.dump(test_results, f, ensure_ascii=False, indent=2)
-
-pd.DataFrame(test_results).to_csv("./evaluation/results/rag_benchmark_results.csv", index=False)
-print("Querying complete. Results saved to evaluation_dataset.json and rag_benchmark_results.csv")
+    return results
