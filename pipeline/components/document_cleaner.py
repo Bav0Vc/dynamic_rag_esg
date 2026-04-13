@@ -7,13 +7,9 @@ class DocumentCleaner:
   """
   Runs after PyPDFToDucment
   - Cleans raw PDF text
-  - Extracts structured metadata from a filename pattern: {company}_{year}_{type}.pdf
   - Normalises meta keys so each Document has;
     source   — filename  (used in XML citation tags)
     page     — page number
-    year     — reporting year (int)
-    company  — company name
-    doc_type — report type (ecovadis, vsme, …)
   """
   @component.output_types(documents=list[Document])
   def run(self, documents: list[Document]) -> dict:
@@ -42,25 +38,10 @@ class DocumentCleaner:
     # Normalise page key
     meta["page"] = meta.get("page_number", "?")
 
-    # Extract structured fields from filename
+    # Extract source filename
     file_path = meta.get("file_path", "")
     filename = Path(file_path).name
 
     meta["source"] = filename
-    extracted = self._parse_filename(filename)
-    meta.update(extracted)
 
     return meta
-  
-  def _parse_filename(self, filename: str) -> dict:
-    # Expected pattern: {company}_{year}_{type}.pdf
-    pattern = r"^(?P<company>[^_]+)_(?P<year>\d{4})_(?P<doc_type>.+?)\.pdf$"
-    match = re.match(pattern, filename, re.IGNORECASE)
-    if match:
-      return {
-        "company": match.group("company"),
-        "year": int(match.group("year")),
-        "doc_type": match.group("doc_type"),
-      }
-    # Filename doesn't match the convention
-    return {"company": "unknown", "year": None, "doc_type": "unknown"}
