@@ -25,15 +25,15 @@ from ragas.embeddings import LangchainEmbeddingsWrapper
 load_dotenv()
 
 def calculate_cost(llm_name, prompt_tokens, completion_tokens):
-    # Prices per 1M tokens
-    prices = {
-        "GPT-4o-mini": {"in": 0.150, "out": 0.600},
-        "Gemini-2.5-Flash": {"in": 0.075, "out": 0.300},
-        "Mistral-Large-2": {"in": 2.000, "out": 6.000}
-    }
-    
-    p = prices.get(llm_name, {"in": 0, "out": 0})
-    return (prompt_tokens * p["in"] + completion_tokens * p["out"]) / 1_000_000
+  # Prices per 1M tokens
+  prices = {
+    "GPT-4o-mini": {"in": 0.150, "out": 0.600},
+    "Gemini-2.5-Flash": {"in": 0.075, "out": 0.300},
+    "Mistral-Large-2": {"in": 2.000, "out": 6.000}
+  }
+  
+  p = prices.get(llm_name, {"in": 0, "out": 0})
+  return (prompt_tokens * p["in"] + completion_tokens * p["out"]) / 1_000_000
 
 def evaluate_results():
   input_file = "evaluation/results/evaluation_dataset.json"

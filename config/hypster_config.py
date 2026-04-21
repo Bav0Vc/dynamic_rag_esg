@@ -1,39 +1,46 @@
 from hypster import HP, instantiate
 
-
 def chunking_config(hp: HP):
-    chunker_name = hp.select(
-        ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"],
-        name="chunker_name",
-        default="RecursiveSplitter",
-    )
-    return hp.collect(locals())
+  chunker_name = hp.select(
+    [
+      "RecursiveSplitter",
+      "FixedSizeWordSplitter",
+      "SemanticEmbeddingChunker"
+    ],
+    name="chunker_name",
+    default="RecursiveSplitter",
+  )
+  return hp.collect(locals())
 
 
 def embedding_config(hp: HP):
-    model = hp.select(
-        [
-            "BAAI/bge-m3",
-            "text-embedding-3-large",
-            "intfloat/multilingual-e5-large-instruct",
-        ],
-        name="model",
-        default="BAAI/bge-m3",
-    )
-    return hp.collect(locals())
+  model = hp.select(
+    [
+      "BAAI/bge-m3",
+      "text-embedding-3-large", # snowflake | arctic-embed-1-v2.0
+      "intfloat/multilingual-e5-large-instruct",
+    ],
+    name="model",
+    default="BAAI/bge-m3",
+  )
+  return hp.collect(locals())
 
 
 def llm_config(hp: HP):
-    name = hp.select(
-        ["GPT-4o-mini", "Gemini-2.5-Flash", "Mistral-Large-2"],
-        name="name",
-        default="GPT-4o-mini",
-    )
-    return hp.collect(locals())
+  name = hp.select(
+    [
+      "GPT-4o-mini", # Qwen 2.5 14B Instruct
+      "Gemini-2.5-Flash", # Meta Llama 3.3 70B Instruct
+      "Mistral-Large-2"
+    ],
+    name="name",
+    default="GPT-4o-mini",
+  )
+  return hp.collect(locals())
 
 
 def pipeline_config(hp: HP):
-    chunking = hp.nest(chunking_config, name="chunking")
-    embedding = hp.nest(embedding_config, name="embedding")
-    llm = hp.nest(llm_config, name="llm")
-    return hp.collect(locals())
+  chunking = hp.nest(chunking_config, name="chunking")
+  embedding = hp.nest(embedding_config, name="embedding")
+  llm = hp.nest(llm_config, name="llm")
+  return hp.collect(locals())
