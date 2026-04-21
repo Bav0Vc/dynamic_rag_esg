@@ -7,7 +7,7 @@ import pandas as pd
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
+  sys.path.insert(0, _PROJECT_ROOT)
 
 from config.hypster_config import pipeline_config
 from hypster import instantiate
@@ -17,8 +17,8 @@ from pipeline.query_pipeline import run_query_pipeline
 # Configuration space axes
 # 
 CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
-EMBEDDERS = ["BAAI/bge-m3", "text-embedding-3-large", "intfloat/multilingual-e5-large-instruct"]
-LLMS = ["GPT-4o-mini", "Gemini-2.5-Flash", "Mistral-Large-2"]
+EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-1-v2.0", "intfloat/multilingual-e5-large-instruct"]
+LLMS = ["Qwen-2.5-14B", "Llama-3.3-70B", "Mistral-Large-2"]
 
 #
 # Output paths

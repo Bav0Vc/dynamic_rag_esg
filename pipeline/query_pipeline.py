@@ -5,17 +5,16 @@ import time
 from dotenv import load_dotenv
 from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
-from haystack.components.embedders import OpenAITextEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.utils import Secret
-from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 _PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _PIPELINE_DIR not in sys.path:
-    sys.path.insert(0, _PIPELINE_DIR)
+  sys.path.insert(0, _PIPELINE_DIR)
 
 load_dotenv()
 
@@ -28,11 +27,8 @@ Context:
 {% endfor %}
 Vraag: {{question}}"""
 
-_EMBEDDING_DIMS = {
-  "BAAI/bge-m3": 1024,
-  "text-embedding-3-large": 3072,
-  "intfloat/multilingual-e5-large-instruct": 1024,
-}
+_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+_HF_LLM_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
 
 
 def _extract_reply_text(reply) -> str:
@@ -48,49 +44,53 @@ def _extract_reply_text(reply) -> str:
   return str(reply)
 
 
-def _build_text_embedder(embedder_model: str):
-  if embedder_model == "text-embedding-3-large":
-    return OpenAITextEmbedder(model=embedder_model)
-  return SentenceTransformersTextEmbedder(model=embedder_model)
+def _build_text_embedder(emb_cfg: dict):
+  if emb_cfg["backend"] == "nvidia":
+    return OpenAITextEmbedder(
+      model=emb_cfg["api_model"],
+      api_key=Secret.from_env_var("NVIDIA_API_KEY"),
+      api_base_url=_NVIDIA_BASE_URL,
+    )
+  return HuggingFaceAPITextEmbedder(
+    api_type="serverless_inference_api",
+    api_params={"model": emb_cfg["api_model"]},
+    token=Secret.from_env_var("HF_TOKEN"),
+  )
 
 
-def _build_llm(llm_name: str):
-  if llm_name == "GPT-4o-mini":
-    return OpenAIGenerator(model="gpt-4o-mini")
-  if llm_name == "Gemini-2.5-Flash":
-    return GoogleGenAIChatGenerator(model="gemini-2.5-flash")
-  if llm_name == "Mistral-Large-2":
-    return MistralChatGenerator(model="mistral-large-2407")
-  raise ValueError(f"Unknown LLM: {llm_name!r}")
+def _build_llm(llm_cfg: dict):
+  if llm_cfg["backend"] == "mistral":
+    return MistralChatGenerator(model=llm_cfg["api_model"])
+  if llm_cfg["backend"] == "nvidia":
+    return OpenAIGenerator(
+      model=llm_cfg["api_model"],
+      api_key=Secret.from_env_var("NVIDIA_API_KEY"),
+      api_base_url=_NVIDIA_BASE_URL,
+    )
+  return OpenAIGenerator(
+    model=llm_cfg["api_model"],
+    api_key=Secret.from_env_var("HF_TOKEN"),
+    api_base_url=_HF_LLM_BASE_URL,
+  )
 
 
 def run_query_pipeline(config: dict, golden_dataset: list) -> list:
-  """Run a single RAG configuration against the golden dataset.
-
-  Args:
-      config: Instantiated Hypster config dict with keys
-              ``chunking``, ``embedding``, and ``llm``.
-      golden_dataset: List of dicts, each with keys ``id``, ``question``,
-                      ``ground_truth``, and ``expected_source``.
-
-  Returns:
-      List of result dicts — one entry per (question, config) pair.
-  """
   chunker_name: str = config["chunking"]["chunker_name"]
-  embedder_model: str = config["embedding"]["model"]
-  llm_name: str = config["llm"]["name"]
+  emb_cfg: dict = config["embedding"]
+  llm_cfg: dict = config["llm"]
 
+  embedder_model = emb_cfg["model"]
+  llm_name = llm_cfg["name"]
   config_label = f"{chunker_name} | {embedder_model} | {llm_name}"
   print(f"Running config: {config_label}")
 
   collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
-  dim = _EMBEDDING_DIMS.get(embedder_model, 768)
 
   document_store = QdrantDocumentStore(
     url=os.getenv("QDRANT_URL"),
     api_key=Secret.from_env_var("QDRANT_API_KEY"),
     index=collection_name,
-    embedding_dim=dim,
+    embedding_dim=emb_cfg["dims"],
     recreate_index=False,
   )
 
@@ -103,13 +103,13 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
     print(f"  -> Could not connect to collection '{collection_name}'. Skipping. {exc}")
     return []
 
-  text_embedder = _build_text_embedder(embedder_model)
-  llm_instance = _build_llm(llm_name)
+  text_embedder = _build_text_embedder(emb_cfg)
+  llm_instance = _build_llm(llm_cfg)
 
   query_pipe = Pipeline()
   query_pipe.add_component("text_embedder", text_embedder)
   query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
-  query_pipe.add_component("prompt_builder", PromptBuilder(template=_PROMPT_TEMPLATE))
+  query_pipe.add_component("prompt_builder", PromptBuilder(template=_PROMPT_TEMPLATE, required_variables=["documents", "question"]))
   query_pipe.add_component("llm", llm_instance)
 
   query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
@@ -131,7 +131,13 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
       final_answer = _extract_reply_text(reply)
 
       contexts = [doc.content for doc in response["retriever"]["documents"]]
-      usage = reply.meta.get("usage", {}) if hasattr(reply, "meta") else {}
+      # MistralChatGenerator returns ChatMessage with .meta; OpenAIGenerator returns a
+      # plain string and puts usage in response["llm"]["meta"][0]
+      if hasattr(reply, "meta"):
+        usage = reply.meta.get("usage", {})
+      else:
+        meta_list = response["llm"].get("meta", [{}])
+        usage = (meta_list[0].get("usage", {}) if meta_list else {})
 
       results.append({
         "id": item["id"],

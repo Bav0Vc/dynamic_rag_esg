@@ -5,31 +5,24 @@ import numpy as np
 from ragas import evaluate
 from dotenv import load_dotenv
 
-# from ragas.metrics import (
-#   Faithfulness,
-#   AnswerRelevancy,
-#   ContextPrecision,
-#   ContextRecall
-# )
-from ragas.metrics.collections import Faithfulness
-from ragas.metrics.collections import AnswerRelevancy
-from ragas.metrics.collections import ContextPrecision
-from ragas.metrics.collections import ContextRecall
+from ragas.metrics._faithfulness import Faithfulness
+from ragas.metrics._answer_relevance import AnswerRelevancy
+from ragas.metrics._context_precision import ContextPrecision
+from ragas.metrics._context_recall import ContextRecall
 
 from ragas.dataset_schema import SingleTurnSample, EvaluationDataset
-from langchain_openai import ChatOpenAI
-from langchain_mistralai import MistralAIEmbeddings
-from ragas.llms import LangchainLLMWrapper
-from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import llm_factory
+from ragas.embeddings import OpenAIEmbeddings
+from openai import OpenAI
 
 load_dotenv()
 
 def calculate_cost(llm_name, prompt_tokens, completion_tokens):
-  # Prices per 1M tokens
+  # Prices per 1M tokens (Ollama = local/free, NVIDIA and Mistral are API-priced)
   prices = {
-    "GPT-4o-mini": {"in": 0.150, "out": 0.600},
-    "Gemini-2.5-Flash": {"in": 0.075, "out": 0.300},
-    "Mistral-Large-2": {"in": 2.000, "out": 6.000}
+    "Qwen-2.5-14B": {"in": 0.100, "out": 0.100},       # HuggingFace featherless-ai
+    "Llama-3.3-70B": {"in": 0.120, "out": 0.120},      # NVIDIA build API
+    "Mistral-Large-2": {"in": 2.000, "out": 6.000},     # Mistral API
   }
   
   p = prices.get(llm_name, {"in": 0, "out": 0})
@@ -55,20 +48,16 @@ def evaluate_results():
   # Process per configuration
   configurations = df["Configuration"].unique()
   
-  # Initialize evaluators
+  # Initialize evaluators using Mistral via OpenAI-compatible endpoint
   mistral_api_key = os.getenv("MISTRAL_API_KEY")
-  evaluator_llm = LangchainLLMWrapper(ChatOpenAI(
-    api_key=mistral_api_key, 
-    base_url="https://api.mistral.ai/v1", 
-    model="mistral-large-2407"
-  ))
-  evaluator_embeddings = LangchainEmbeddingsWrapper(MistralAIEmbeddings(mistral_api_key=mistral_api_key, model="mistral-embed"))
-  
+  mistral_client = OpenAI(base_url="https://api.mistral.ai/v1", api_key=mistral_api_key)
+  evaluator_llm = llm_factory("mistral-large-2407", provider="openai", client=mistral_client)
+  evaluator_embeddings = OpenAIEmbeddings(client=mistral_client, model="mistral-embed")
+
   for config in configurations:
     print(f"Evaluating config: {config}")
     subset = df[df["Configuration"] == config]
-    
-    # Construct Ragas format items
+
     samples = []
     for _, row in subset.iterrows():
       sample = SingleTurnSample(
@@ -80,17 +69,16 @@ def evaluate_results():
       samples.append(sample)
 
     dataset = EvaluationDataset(samples=samples)
-    
+
+    metrics = [
+      Faithfulness(llm=evaluator_llm),
+      AnswerRelevancy(llm=evaluator_llm, embeddings=evaluator_embeddings),
+      ContextRecall(llm=evaluator_llm),
+      ContextPrecision(llm=evaluator_llm),
+    ]
+
     try:
-      # Using Mistral as evaluator judge
-      metrics = [Faithfulness(), AnswerRelevancy(), ContextRecall(), ContextPrecision()]
-      
-      ragas_result = evaluate(
-        dataset, 
-        metrics=metrics,
-        llm=evaluator_llm,
-        embeddings=evaluator_embeddings
-      )
+      ragas_result = evaluate(dataset, metrics=metrics)
       
       scores_df = ragas_result.to_pandas()
       

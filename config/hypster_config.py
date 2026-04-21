@@ -1,42 +1,57 @@
 from hypster import HP, instantiate
 
+
 def chunking_config(hp: HP):
   chunker_name = hp.select(
-    [
-      "RecursiveSplitter",
-      "FixedSizeWordSplitter",
-      "SemanticEmbeddingChunker"
-    ],
+    ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"],
     name="chunker_name",
     default="RecursiveSplitter",
   )
-  return hp.collect(locals())
+  return {"chunker_name": chunker_name}
 
 
 def embedding_config(hp: HP):
   model = hp.select(
     [
       "BAAI/bge-m3",
-      "text-embedding-3-large", # snowflake | arctic-embed-1-v2.0
+      "snowflake/arctic-embed-1-v2.0",
       "intfloat/multilingual-e5-large-instruct",
     ],
     name="model",
     default="BAAI/bge-m3",
   )
-  return hp.collect(locals())
+  if model == "BAAI/bge-m3":
+    backend = "nvidia"
+    api_model = "baai/bge-m3"
+  elif model == "snowflake/arctic-embed-1-v2.0":
+    backend = "hf"
+    api_model = "Snowflake/snowflake-arctic-embed-l-v2.0"
+  else:
+    backend = "hf"
+    api_model = "intfloat/multilingual-e5-large"
+  return {"model": model, "backend": backend, "api_model": api_model, "dims": 1024}
 
 
 def llm_config(hp: HP):
   name = hp.select(
     [
-      "GPT-4o-mini", # Qwen 2.5 14B Instruct
-      "Gemini-2.5-Flash", # Meta Llama 3.3 70B Instruct
-      "Mistral-Large-2"
+      "Qwen-2.5-14B",
+      "Llama-3.3-70B",
+      "Mistral-Large-2",
     ],
     name="name",
-    default="GPT-4o-mini",
+    default="Qwen-2.5-14B",
   )
-  return hp.collect(locals())
+  if name == "Qwen-2.5-14B":
+    backend = "hf"
+    api_model = "Qwen/Qwen2.5-14B-Instruct"
+  elif name == "Llama-3.3-70B":
+    backend = "nvidia"
+    api_model = "meta/llama-3.3-70b-instruct"
+  else:  # Mistral-Large-2
+    backend = "mistral"
+    api_model = "mistral-large-latest"
+  return {"name": name, "backend": backend, "api_model": api_model}
 
 
 def pipeline_config(hp: HP):
