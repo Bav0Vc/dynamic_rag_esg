@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 .venv/
 results/
+./data/ESG_Report/*
