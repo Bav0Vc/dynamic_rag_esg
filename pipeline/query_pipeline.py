@@ -118,7 +118,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
 
   results = []
   for item in golden_dataset:
-    q = item["question"]
+    q = item["answer"]["user_question"]
     try:
       start_time = time.time()
       response = query_pipe.run(
@@ -140,10 +140,13 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
         usage = (meta_list[0].get("usage", {}) if meta_list else {})
 
       results.append({
-        "id": item["id"],
+        "question_id": item["question_id"],
         "question": q,
+        "requirement": item["question"],
         "ground_truth": item["ground_truth"],
         "expected_source": item["expected_source"],
+        "reference_contexts": list(item.get("reference_contexts", {}).values()),
+        "source_page": item.get("source_page"),
         "Configuration": config_label,
         "Chunker": chunker_name,
         "Embedder": embedder_model,

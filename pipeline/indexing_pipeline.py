@@ -87,7 +87,7 @@ for chunker_class in [RecursiveSplitter, FixedSizeWordSplitter, SemanticEmbeddin
     indexing_pipe.connect("chunker.documents", "embedder.documents")
     indexing_pipe.connect("embedder.documents", "writer.documents")
 
-    raw_data_dir = Path("data/raw")
+    raw_data_dir = Path(__file__).resolve().parent.parent / "data" / "raw"
     pdf_paths = [str(p) for p in raw_data_dir.glob("*.pdf")]
 
     if not pdf_paths:

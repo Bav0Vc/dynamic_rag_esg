@@ -2,7 +2,7 @@
 
 ## \#1
 
-The undertaking shall disclose its estimated gross greenhouse gas (GHG) emissions in tons of CO2 equivalent (tCO2eq) considering the content of the GHG Protocol Corporate Standard (version 2004), including: the Scope 1 GHG emissions in tCO2eq (from owned or controlled sources);
+The undertaking shall disclose its estimated gross greenhouse gas (GHG) emissions in tons of CO2 equivalent (tCO2eq) considering the content of the GHG Protocol Corporate Standard (version 2004), including: the Scope 1 GHG emissions in tCO2eq (from owned or controlled sources).
 
 ---
 

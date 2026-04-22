@@ -1,0 +1,36 @@
+[
+  {
+    "question_id": "GS-01",
+    "question": "The student shall disclose his/her field of study",
+    "answer": {
+      "user_question": "What is the students' field of study?",
+      "data_points": {
+        "Field of study": null
+      }
+    },
+    "ground_truth": "Applied Information Technology",
+    "expected_source": "DIT_TI_Stagedossier_buitenland_EN_2025_26_BV.pdf",
+    "reference_contexts": {
+      "snippet_1": "Field of study Applied Information Technology"
+    },
+    "source_page": 4
+  },
+  {
+    "question_id": "GS-02",
+    "question": "The student shall disclose his specialiastion and semester in which he does an internship.",
+    "answer": {
+      "user_question": "What is the students' specialisation and in which semester does he do an internship?",
+      "data_points": {
+        "Specialisation": null,
+        "Internship semester": null
+      }
+    },
+    "ground_truth": "Specialisation is full stack developer and the internship is in semester 2",
+    "expected_source": "DIT_TI_Stagedossier_buitenland_EN_2025_26_BV.pdf",
+    "reference_contexts": {
+      "snippet_1": "Specialisation: full stack developer",
+      "snippet_2": "I am doing an internship in semester 2"
+    },
+    "source_page": 1
+  }
+]
