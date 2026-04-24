@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-
 from dotenv import load_dotenv
 from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
