@@ -18,24 +18,24 @@ if _PIPELINE_DIR not in sys.path:
 
 print("Starting pipeline:")
 
-indexing = input("(Re)run indexing pipeline? [Y/n]: ")
-if indexing == "y" or indexing == "Y":
+indexing = input("(Re)run indexing pipeline? [Y/n]: ").strip().upper()
+if indexing == "Y":
   # ── Step 1: Index all chunker × embedder combinations ────────────────────────
   print("=" * 60)
   print("STEP 1: Indexing pipeline")
   print("=" * 60)
   run_indexing()
 
-benchmarking = input("(Re)run benchmark loop? [Y/n]: ")
-if benchmarking == "y" or benchmarking == "Y":
+benchmarking = input("(Re)run benchmark loop? [Y/n]: ").strip().upper()
+if benchmarking == "Y":
   # ── Step 2: Run query benchmark over all configurations ──────────────────────
   print("\n" + "=" * 60)
   print("STEP 2: Benchmark loop")
   print("=" * 60)
   run_benchmark()
 
-evaluating = input("(Re)run RAGAS evaluation pipeline? [Y/n]: ")
-if evaluating == "y" or evaluating == "Y":
+evaluating = input("(Re)run RAGAS evaluation pipeline? [Y/n]: ").strip().upper()
+if evaluating == "Y":
   # ── Step 3: RAGAS evaluation ─────────────────────────────────────────────────
   print("\n" + "=" * 60)
   print("STEP 3: RAGAS evaluation")
