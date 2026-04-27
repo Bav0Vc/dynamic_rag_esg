@@ -33,15 +33,16 @@ class DocumentCleaner:
     return text.strip()
   
   def _build_meta(self, original_meta: dict) -> dict:
-    meta = dict(original_meta)  # never mutate original
+    meta = dict(original_meta)
 
-    # Normalise page key
-    meta["page"] = meta.get("page_number", "?")
+    # Standardize 'page' from 'page_number'
+    if "page_number" in meta:
+        meta["page"] = meta.pop("page_number")
+    else:
+        meta.setdefault("page", "?")
 
-    # Extract source filename
-    file_path = meta.get("file_path", "")
-    filename = Path(file_path).name
-
-    meta["source"] = filename
-
+    # Standardize 'source' from 'file_path'
+    if "file_path" in meta:
+        meta["source"] = Path(meta.pop("file_path")).name
+    
     return meta

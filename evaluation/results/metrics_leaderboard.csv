@@ -1,3 +1,0 @@
-Configuration;Chunker;Embedder;LLM;Latency (s);Cost per Query ($);Source Attribution;Faithfulness;Answer Relevancy;Context Recall;Context Precision
-RecursiveSplitter | BAAI/bge-m3 | Qwen-2.5-14B;RecursiveSplitter;BAAI/bge-m3;Qwen-2.5-14B;3.745;0.000307;1.0;1.0;0.9844;1.0;0.9583
-RecursiveSplitter | BAAI/bge-m3 | Llama-3.3-70B;RecursiveSplitter;BAAI/bge-m3;Llama-3.3-70B;3.482;0.000328;1.0;0.75;0.4969;1.0;0.9583

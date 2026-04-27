@@ -29,7 +29,8 @@ BENCHMARK_CSV_PATH = os.path.join(_RESULTS_DIR, "rag_benchmark_results.csv")
 
 
 def load_golden_dataset() -> list:
-  path = os.path.join(_PROJECT_ROOT, "data", "golden_set", "example.json")
+  # path = os.path.join(_PROJECT_ROOT, "data", "golden_set", "example.json")
+  path = os.path.join(_PROJECT_ROOT, "data", "golden_set", "vsme_esg.json")
   with open(path, "r", encoding="utf-8") as f:
     return json.load(f)
 

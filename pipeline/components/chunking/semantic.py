@@ -1,7 +1,8 @@
 from typing import List, Optional
 from haystack import component, Document
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+from transformers import logging as hf_logging
 from haystack.components.preprocessors import EmbeddingBasedDocumentSplitter
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 
 # Semantic chunking
 @component
@@ -15,6 +16,8 @@ class SemanticEmbeddingChunker:
     max_length: int = 1000,
     device: Optional[str] = None
   ):
+    hf_logging.set_verbosity_error()
+
     self.embedder = SentenceTransformersDocumentEmbedder(
       model=model_name, 
       device=device
