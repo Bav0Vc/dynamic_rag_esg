@@ -16,20 +16,30 @@ if _PIPELINE_DIR not in sys.path:
   sys.path.insert(0, _PIPELINE_DIR)
 
 
-# ── Step 1: Index all chunker × embedder combinations ────────────────────────
-print("=" * 60)
-print("STEP 1: Indexing pipeline")
-print("=" * 60)
-run_indexing()
+print("Starting pipeline:")
 
-# ── Step 2: Run query benchmark over all configurations ──────────────────────
-print("\n" + "=" * 60)
-print("STEP 2: Benchmark loop")
-print("=" * 60)
-run_benchmark()
+indexing = input("(Re)run indexing pipeline? [Y/n]: ")
+if indexing == "y" or indexing == "Y":
+  # ── Step 1: Index all chunker × embedder combinations ────────────────────────
+  print("=" * 60)
+  print("STEP 1: Indexing pipeline")
+  print("=" * 60)
+  run_indexing()
 
-# ── Step 3: RAGAS evaluation ─────────────────────────────────────────────────
-print("\n" + "=" * 60)
-print("STEP 3: RAGAS evaluation")
-print("=" * 60)
-asyncio.run(evaluate_results())
+benchmarking = input("(Re)run benchmark loop? [Y/n]: ")
+if benchmarking == "y" or benchmarking == "Y":
+  # ── Step 2: Run query benchmark over all configurations ──────────────────────
+  print("\n" + "=" * 60)
+  print("STEP 2: Benchmark loop")
+  print("=" * 60)
+  run_benchmark()
+
+evaluating = input("(Re)run RAGAS evaluation pipeline? [Y/n]: ")
+if evaluating == "y" or evaluating == "Y":
+  # ── Step 3: RAGAS evaluation ─────────────────────────────────────────────────
+  print("\n" + "=" * 60)
+  print("STEP 3: RAGAS evaluation")
+  print("=" * 60)
+  asyncio.run(evaluate_results())
+
+sys.exit()
