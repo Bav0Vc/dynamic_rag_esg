@@ -4,7 +4,7 @@ import time
 from dotenv import load_dotenv
 from haystack import Pipeline
 from haystack.components.builders import PromptBuilder
-from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder
+from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.utils import Secret
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
@@ -44,6 +44,8 @@ def _extract_reply_text(reply) -> str:
 
 
 def _build_text_embedder(emb_cfg: dict):
+  if emb_cfg["backend"] == "sentence-transformers":
+    return SentenceTransformersTextEmbedder(model=emb_cfg["api_model"])
   if emb_cfg["backend"] == "nvidia":
     return OpenAITextEmbedder(
       model=emb_cfg["api_model"],

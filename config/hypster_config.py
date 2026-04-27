@@ -21,14 +21,14 @@ def embedding_config(hp: HP):
     default="BAAI/bge-m3",
   )
   if model == "BAAI/bge-m3":
-    backend = "nvidia"
-    api_model = "baai/bge-m3"
+    backend = "sentence-transformers"
+    api_model = "BAAI/bge-m3"
   elif model == "snowflake/arctic-embed-1-v2.0":
-    backend = "hf"
+    backend = "sentence-transformers"
     api_model = "Snowflake/snowflake-arctic-embed-l-v2.0"
   else:
-    backend = "hf"
-    api_model = "intfloat/multilingual-e5-large"
+    backend = "sentence-transformers"
+    api_model = "intfloat/multilingual-e5-large-instruct"
   return {"model": model, "backend": backend, "api_model": api_model, "dims": 1024}
 
 

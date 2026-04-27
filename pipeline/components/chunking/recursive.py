@@ -14,12 +14,22 @@ class RecursiveSplitter:
     final_docs = []
     for doc in documents:
       text = doc.content
-
       chunks = self._recursive_split(text, self.separators)
-      
+
+      search_from = 0
       for i, chunk in enumerate(chunks):
-        final_docs.append(Document(content=chunk, meta={**doc.meta, "chunk_id": i}))
-    
+        pos = text.find(chunk, search_from)
+        if pos >= 0:
+          end_pos = pos + len(chunk)
+          page_start = text[:pos].count("\f") + 1
+          page_end = text[:end_pos].count("\f") + 1
+          page = page_start if page_start == page_end else f"{page_start}-{page_end}"
+          search_from = pos
+        else:
+          page = doc.meta.get("page", "?")
+
+        final_docs.append(Document(content=chunk, meta={**doc.meta, "page": page, "chunk_id": i}))
+
     return {"documents": final_docs}
 
   def _recursive_split(self, text: str, separators: List[str]) -> List[str]:
@@ -33,6 +43,7 @@ class RecursiveSplitter:
     final_chunks = []
     current_chunk = ""
     
+    # When text is on multiple pages (returns range of pages instead of 1 page number)
     for part in parts:
       # If word count > split_length, recurse with next separator
       if len(part.split()) > self.split_length and len(separators) > 1:

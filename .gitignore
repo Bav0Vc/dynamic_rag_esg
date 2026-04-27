@@ -6,3 +6,4 @@ __pycache__/
 #results/
 .claude/
 /analysis
+/tests
