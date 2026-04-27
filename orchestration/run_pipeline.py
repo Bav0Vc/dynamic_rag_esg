@@ -28,7 +28,7 @@ print("STEP 2: Benchmark loop")
 print("=" * 60)
 run_benchmark()
 
-# ── Step 3: RAGAS evaluation ─────────────────
+# ── Step 3: RAGAS evaluation ─────────────────────────────────────────────────
 print("\n" + "=" * 60)
 print("STEP 3: RAGAS evaluation")
 print("=" * 60)
