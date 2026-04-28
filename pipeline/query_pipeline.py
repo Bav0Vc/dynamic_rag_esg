@@ -18,7 +18,7 @@ _PROMPT_TEMPLATE = """Answer the question based on the context. \
 Also include the filename and page number of the document containing the retrieved chunk, on a new line after the answer to the question.
 Context:
 {% for doc in documents %}
-  File: {{ doc.meta['source'] }}, pagina: {{ doc.meta['page'] | default('?') }}
+  File: {{ doc.meta['source'] }}, Page: {{ doc.meta['page'] | default('?') }}
   Contents: {{ doc.content }}
 {% endfor %}
 Question: {{question}}"""
@@ -115,7 +115,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
   query_pipe.connect("prompt_builder", "llm")
 
   _MAX_RETRIES = 6
-  _RETRY_BASE_DELAY = 15  # seconds; doubles each attempt
+  _RETRY_BASE_DELAY = 15  # seconds (doubles each attempt)
 
   results = []
   for item in golden_dataset:
@@ -133,8 +133,8 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
         final_answer = _extract_reply_text(reply)
 
         contexts = [doc.content for doc in response["retriever"]["documents"]]
-        # MistralChatGenerator returns ChatMessage with .meta; OpenAIGenerator returns a
-        # plain string and puts usage in response["llm"]["meta"][0]
+        # MistralChatGenerator returns ChatMessage with .meta
+        # OpenAIGenerator returns a plain string and puts usage in response["llm"]["meta"][0]
         if hasattr(reply, "meta"):
           usage = reply.meta.get("usage", {})
         else:
@@ -159,7 +159,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
           "prompt_tokens": usage.get("prompt_tokens", 0),
           "completion_tokens": usage.get("completion_tokens", 0),
         })
-        break  # success — move to next question
+        break  # success = move to next question
       except Exception as exc:
         if attempt < _MAX_RETRIES - 1:
           wait = _RETRY_BASE_DELAY * (2 ** attempt)

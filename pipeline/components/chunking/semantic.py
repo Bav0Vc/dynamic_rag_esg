@@ -4,7 +4,6 @@ from transformers import logging as hf_logging
 from haystack.components.preprocessors import EmbeddingBasedDocumentSplitter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 
-# Semantic chunking
 @component
 class SemanticEmbeddingChunker:
   def __init__(

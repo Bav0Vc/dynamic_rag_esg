@@ -1,5 +1,4 @@
 .env
-data/raw/
 __pycache__/
 *.pyc
 .venv/
@@ -7,4 +6,10 @@ __pycache__/
 .claude/
 /tests
 /dynamic_rag_esg.egg-info
-data/dataset
+
+data/golden_set/Questions
+data/raw/
+/notes
+
+# Docker
+*.dockerignore

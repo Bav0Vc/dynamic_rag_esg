@@ -9,16 +9,12 @@ from pipeline.query_pipeline import run_query_pipeline
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#
 # Configuration space axes
-# 
 CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
 EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-1-v2.0", "intfloat/multilingual-e5-large-instruct"]
 LLMS = ["Qwen-2.5-14B", "Llama-3.3-70B", "Mistral-Large-2"]
 
-#
 # Output paths
-# 
 _RESULTS_DIR = os.path.join(_PROJECT_ROOT, "evaluation", "results")
 EVAL_DATASET_PATH = os.path.join(_RESULTS_DIR, "evaluation_dataset.json")
 BENCHMARK_CSV_PATH = os.path.join(_RESULTS_DIR, "rag_benchmark_results.csv")

@@ -2,7 +2,6 @@ from typing import List
 from haystack import component, Document
 from haystack.components.preprocessors import DocumentSplitter
 
-# Fixed size chunking
 @component
 class FixedSizeWordSplitter:
   def __init__(self, split_length: int = 150, split_overlap: int = 20):

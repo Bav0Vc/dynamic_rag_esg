@@ -1,78 +1,33 @@
 import os
-import time
-from typing import List
 from pathlib import Path
+from haystack import Pipeline
 from datetime import datetime
 from itertools import product
 from dotenv import load_dotenv
 from haystack.utils import Secret
-from haystack import Pipeline, component, Document
 # Converter & Cleaner
-from pipeline.components.pymupdf_converter import PyMuPDF4LLMConverter
 from pipeline.components.document_cleaner import DocumentCleaner
+from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 # Chunking
 from pipeline.components.chunking.fixed import FixedSizeWordSplitter
 from pipeline.components.chunking.recursive import RecursiveSplitter
 from pipeline.components.chunking.semantic import SemanticEmbeddingChunker
 # Embedding
-from haystack.components.embedders import HuggingFaceAPIDocumentEmbedder, SentenceTransformersDocumentEmbedder
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 # Document Store & Writer
+from hypster import instantiate
 from qdrant_client import QdrantClient
+from config.hypster_config import pipeline_config
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-from config.hypster_config import pipeline_config
-from hypster import instantiate
+
 
 load_dotenv()
 
-_BATCH_SIZE = 16
-_MAX_RETRIES = 8
-_RETRY_BASE_DELAY = 15
+_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls"}
 
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
 _EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-1-v2.0", "intfloat/multilingual-e5-large-instruct"]
-
-
-@component
-class RetryingHFDocumentEmbedder:
-  """Wraps HuggingFaceAPIDocumentEmbedder with per-batch retry and exponential back-off."""
-
-  def __init__(self, api_model: str, token: Secret, batch_size: int = _BATCH_SIZE, max_retries: int = _MAX_RETRIES, retry_base_delay: float = _RETRY_BASE_DELAY):
-    self._inner = HuggingFaceAPIDocumentEmbedder(api_type="serverless_inference_api", api_params={"model": api_model}, token=token, truncate=None, normalize=None)
-    self.batch_size = batch_size
-    self.max_retries = max_retries
-    self.retry_base_delay = retry_base_delay
-
-  def warm_up(self):
-    if hasattr(self._inner, "warm_up"):
-      self._inner.warm_up()
-
-  @component.output_types(documents=List[Document])
-  def run(self, documents: List[Document]):
-    embedded: List[Document] = []
-    total = len(documents)
-    for start in range(0, total, self.batch_size):
-      batch = documents[start:start + self.batch_size]
-      batch_label = f"docs {start + 1}–{min(start + self.batch_size, total)} / {total}"
-      for attempt in range(self.max_retries):
-        try:
-          result = self._inner.run(documents=batch)
-          embedded.extend(result["documents"])
-          break
-        except Exception as exc:
-          if attempt < self.max_retries - 1:
-            wait = self.retry_base_delay * (2 ** attempt)
-            print(f"\n[embedder] batch {batch_label} failed (attempt {attempt + 1}/{self.max_retries})\nError: {exc}.")
-            remaining_wait = float(wait)
-            while remaining_wait > 0:
-              print(f"Retrying in {remaining_wait:.0f}s...")
-              sleep_interval = min(remaining_wait, 5.0)
-              time.sleep(sleep_interval)
-              remaining_wait -= sleep_interval
-          else:
-            print(f"\n[embedder] batch {batch_label} permanently failed after {self.max_retries} attempts.\nLast error: {exc}")
-            raise
-    return {"documents": embedded}
 
 
 def _make_chunker(chunker_name: str):
@@ -86,12 +41,7 @@ def _make_chunker(chunker_name: str):
 
 
 def _make_doc_embedder(emb_cfg: dict):
-  if emb_cfg["backend"] == "sentence-transformers":
-    return SentenceTransformersDocumentEmbedder(model=emb_cfg["api_model"])
-  return RetryingHFDocumentEmbedder(
-    api_model=emb_cfg["api_model"],
-    token=Secret.from_env_var("HF_TOKEN"),
-  )
+  return SentenceTransformersDocumentEmbedder(model=emb_cfg["api_model"])
 
 
 def run_indexing(resume_from: int = 0) -> None:
@@ -108,6 +58,20 @@ def run_indexing(resume_from: int = 0) -> None:
     chunker, embedder = combinations[resume_from]
     print(f"Resuming from combination {resume_from + 1}/{len(combinations)}: {chunker} | {embedder}\n")
 
+  raw_data_dir = Path(__file__).resolve().parent.parent / "data" / "raw"
+  all_file_paths = [
+    str(p) for p in raw_data_dir.iterdir()
+    if p.suffix.lower() in _SUPPORTED_EXTENSIONS
+  ]
+
+  if not all_file_paths:
+    print("No supported files found in /data/raw!")
+    return
+
+  print(f"Found {len(all_file_paths)} files to index: {[Path(p).name for p in all_file_paths]}\n")
+
+  unstructured_url = os.getenv("UNSTRUCTURED_API_URL", "http://localhost:8000/general/v0/general")
+
   for idx, (chunker_name, embedder_model) in enumerate(combinations):
     if idx < resume_from:
       continue
@@ -115,7 +79,7 @@ def run_indexing(resume_from: int = 0) -> None:
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
-      "llm.name": "Qwen-2.5-14B",  # LLM unused during indexing; keep a valid default
+      "llm.name": "Qwen-2.5-14B",  # LLM unused during indexing (valid default still required)
     }
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
     emb_cfg = config["embedding"]
@@ -138,7 +102,15 @@ def run_indexing(resume_from: int = 0) -> None:
     embedder = _make_doc_embedder(emb_cfg)
 
     indexing_pipe = Pipeline()
-    indexing_pipe.add_component("converter", PyMuPDF4LLMConverter())
+    indexing_pipe.add_component("converter", UnstructuredFileConverter(
+      api_url=unstructured_url,
+      document_creation_mode="one-doc-per-element",
+      unstructured_kwargs={
+        "strategy": "hi_res",
+        "languages": ["ita"],
+        "skip_infer_table_types": [],
+      },
+    ))
     indexing_pipe.add_component("cleaner", DocumentCleaner())
     indexing_pipe.add_component("chunker", chunker)
     indexing_pipe.add_component("embedder", embedder)
@@ -149,17 +121,11 @@ def run_indexing(resume_from: int = 0) -> None:
     indexing_pipe.connect("chunker.documents", "embedder.documents")
     indexing_pipe.connect("embedder.documents", "writer.documents")
 
-    raw_data_dir = Path(__file__).resolve().parent.parent / "data" / "raw"
-    pdf_paths = [str(p) for p in raw_data_dir.glob("*.pdf")]
-
-    if not pdf_paths:
-      print("  No PDF files found in /data/raw!")
-      continue
-
-    indexing_pipe.run({"converter": {"sources": pdf_paths}})
+    indexing_pipe.run({"converter": {"paths": all_file_paths}})
     current_time = datetime.now().strftime("%H:%M:%S")
     print(f"[{current_time}] Finished indexing for {config_name}")
-  print(f"Finished indexing pipeline!")
+
+  print("Finished indexing pipeline!")
 
 
 if __name__ == "__main__":

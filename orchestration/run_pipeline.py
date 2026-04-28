@@ -40,18 +40,18 @@ def _check_existing_indexing_state() -> int | None:
     print("  Proceeding with a fresh start.")
     return 0
 
-  # Indices (into combinations) of collections that already exist, in pipeline order
+  # Indices of collections that already exist (in pipeline order)
   existing_indices = [i for i, name in enumerate(expected_names) if name in existing]
 
   if not existing_indices:
-    return 0  # nothing in Qdrant yet — fresh start, nothing to prompt about
+    return 0  # nothing in Qdrant yet = clean start
 
   last_idx = existing_indices[-1]
   last_name = expected_names[last_idx]
   last_count = client.get_collection(last_name).points_count
 
-  # Determine whether the last existing collection is complete.
-  # Same chunker → same number of chunks, so compare against peer counts.
+  # Determine if last collection is complete
+  # Same chunker -> same number of chunks, so compare against peer counts
   last_chunker = combinations[last_idx][0]
   peer_counts = [
     client.get_collection(expected_names[i]).points_count
@@ -64,7 +64,6 @@ def _check_existing_indexing_state() -> int | None:
     last_is_complete = last_count >= 0.9 * avg_peer
   else:
     # No same-chunker peers to compare against — assume incomplete to be safe
-    # (worst case: we redo one already-complete collection)
     last_is_complete = False
 
   resume_idx = last_idx + 1 if last_is_complete else last_idx

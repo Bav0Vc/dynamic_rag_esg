@@ -13,8 +13,6 @@ class RecursiveSplitter:
     final_docs = []
     for doc in documents:
       chunks = self._recursive_split(doc.content, self.separators)
-      # Page comes from the Document's metadata — Docling already aligns each
-      # Document to a single page, so all sub-chunks inherit that page number.
       page = doc.meta.get("page", "?")
       for i, chunk in enumerate(chunks):
         final_docs.append(Document(content=chunk, meta={**doc.meta, "page": page, "chunk_id": i}))

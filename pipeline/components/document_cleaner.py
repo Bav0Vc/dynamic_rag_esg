@@ -2,20 +2,24 @@ import re
 from pathlib import Path
 from haystack import component, Document
 
+
 @component
 class DocumentCleaner:
   """
-  Runs after PyMuPDF4LLMConverter.
+  Runs after UnstructuredFileConverter.
+  - Drops empty documents
   - Normalises whitespace while preserving Markdown table formatting
   - Normalises meta keys so each Document has:
-    source  — filename  (used in citation tags)
-    page    — page number
+      source  — filename           (used in citation tags)
+      page    — page number (PDF/DOCX) or sheet name (XLSX)
   """
   @component.output_types(documents=list[Document])
   def run(self, documents: list[Document]) -> dict:
     cleaned = []
     for doc in documents:
       text = self._clean_text(doc.content or "")
+      if not text:
+        continue
       meta = self._build_meta(doc.meta)
       cleaned.append(Document(content=text, meta=meta))
     return {"documents": cleaned}
@@ -28,10 +32,21 @@ class DocumentCleaner:
   def _build_meta(self, original_meta: dict) -> dict:
     meta = dict(original_meta)
 
-    if "file_path" in meta:
-      meta["source"] = Path(meta.pop("file_path")).name
+    # Unstructured provides 'filename' (bare name)
+    # Integration also adds 'file_path' (full path)
+    # Prefer 'filename' since it needs no further processing
+    if "filename" in meta:
+      meta["source"] = meta.pop("filename")
+    elif "file_path" in meta:
+      meta["source"] = Path(meta["file_path"]).name
+    meta.pop("file_path", None)
 
-    if "page_number" in meta:
+    # For Excel files use the sheet name as the page identifier
+    # For everything else use the numeric page_number supplied by Unstructured
+    source = meta.get("source", "")
+    if source.lower().endswith((".xlsx", ".xls")) and "page_name" in meta:
+      meta["page"] = meta.pop("page_name")
+    elif "page_number" in meta:
       meta["page"] = meta.pop("page_number")
     else:
       meta.setdefault("page", "?")
