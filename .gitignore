@@ -5,5 +5,6 @@ __pycache__/
 .venv/
 #results/
 .claude/
-/analysis
+/WHATX_dataset_analysis
 /tests
+/dynamic_rag_esg.egg-info

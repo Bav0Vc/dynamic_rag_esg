@@ -1,19 +1,15 @@
-import json
 import os
-import sys
-from itertools import product
-
+import json
 import pandas as pd
-
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _PROJECT_ROOT not in sys.path:
-  sys.path.insert(0, _PROJECT_ROOT)
-
-from config.hypster_config import pipeline_config
+from itertools import product
 from hypster import instantiate
+from config.hypster_config import pipeline_config
 from pipeline.query_pipeline import run_query_pipeline
 
-# 
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#
 # Configuration space axes
 # 
 CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]

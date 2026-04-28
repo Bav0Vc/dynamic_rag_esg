@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 from typing import List
 from pathlib import Path
@@ -8,28 +7,19 @@ from itertools import product
 from dotenv import load_dotenv
 from haystack.utils import Secret
 from haystack import Pipeline, component, Document
-# Cleaner & Converter
-from components.document_cleaner import DocumentCleaner
-from haystack.components.converters import PyPDFToDocument
+# Converter & Cleaner
+from pipeline.components.pymupdf_converter import PyMuPDF4LLMConverter
+from pipeline.components.document_cleaner import DocumentCleaner
 # Chunking
-from components.chunking.fixed import FixedSizeWordSplitter
-from components.chunking.recursive import RecursiveSplitter
-from components.chunking.semantic import SemanticEmbeddingChunker
+from pipeline.components.chunking.fixed import FixedSizeWordSplitter
+from pipeline.components.chunking.recursive import RecursiveSplitter
+from pipeline.components.chunking.semantic import SemanticEmbeddingChunker
 # Embedding
 from haystack.components.embedders import HuggingFaceAPIDocumentEmbedder, SentenceTransformersDocumentEmbedder
 # Document Store & Writer
 from qdrant_client import QdrantClient
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-
-_PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
-if _PIPELINE_DIR not in sys.path:
-  sys.path.insert(0, _PIPELINE_DIR)
-
-_PROJECT_ROOT = os.path.dirname(_PIPELINE_DIR)
-if _PROJECT_ROOT not in sys.path:
-  sys.path.insert(0, _PROJECT_ROOT)
-
 from config.hypster_config import pipeline_config
 from hypster import instantiate
 
@@ -148,7 +138,7 @@ def run_indexing(resume_from: int = 0) -> None:
     embedder = _make_doc_embedder(emb_cfg)
 
     indexing_pipe = Pipeline()
-    indexing_pipe.add_component("converter", PyPDFToDocument())
+    indexing_pipe.add_component("converter", PyMuPDF4LLMConverter())
     indexing_pipe.add_component("cleaner", DocumentCleaner())
     indexing_pipe.add_component("chunker", chunker)
     indexing_pipe.add_component("embedder", embedder)
@@ -159,7 +149,7 @@ def run_indexing(resume_from: int = 0) -> None:
     indexing_pipe.connect("chunker.documents", "embedder.documents")
     indexing_pipe.connect("embedder.documents", "writer.documents")
 
-    raw_data_dir = Path(_PIPELINE_DIR).parent / "data" / "raw"
+    raw_data_dir = Path(__file__).resolve().parent.parent / "data" / "raw"
     pdf_paths = [str(p) for p in raw_data_dir.glob("*.pdf")]
 
     if not pdf_paths:

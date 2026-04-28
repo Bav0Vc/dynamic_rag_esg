@@ -3,19 +3,11 @@ import sys
 import asyncio
 from itertools import product
 from dotenv import load_dotenv
+from qdrant_client import QdrantClient
 from evaluation.ragas_eval import evaluate_results
-from pipeline.indexing_pipeline import run_indexing, _CHUNKERS, _EMBEDDERS
 from orchestration.benchmark_loop import run_benchmark
+from pipeline.indexing_pipeline import run_indexing, _CHUNKERS, _EMBEDDERS
 
-
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _PROJECT_ROOT not in sys.path:
-  sys.path.insert(0, _PROJECT_ROOT)
-
-# Add pipeline dir to path => correctly importing siblings of indexing_pipeline
-_PIPELINE_DIR = os.path.join(_PROJECT_ROOT, "pipeline")
-if _PIPELINE_DIR not in sys.path:
-  sys.path.insert(0, _PIPELINE_DIR)
 
 load_dotenv()
 
@@ -34,7 +26,7 @@ def _check_existing_indexing_state() -> int | None:
   same number of chunks regardless of embedder, so a significantly lower count
   indicates the collection was interrupted mid-run.
   """
-  from qdrant_client import QdrantClient
+  
 
   combinations = list(product(_CHUNKERS, _EMBEDDERS))
   n_total = len(combinations)

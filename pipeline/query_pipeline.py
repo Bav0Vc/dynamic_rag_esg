@@ -1,30 +1,27 @@
 import os
-import sys
 import time
-from dotenv import load_dotenv
 from haystack import Pipeline
-from haystack.components.builders import PromptBuilder
-from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.generators import OpenAIGenerator
+from dotenv import load_dotenv
 from haystack.utils import Secret
+from haystack.components.builders import PromptBuilder
+from haystack.components.generators import OpenAIGenerator
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
-from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder, SentenceTransformersTextEmbedder
 
-_PIPELINE_DIR = os.path.dirname(os.path.abspath(__file__))
-if _PIPELINE_DIR not in sys.path:
-  sys.path.insert(0, _PIPELINE_DIR)
 
 load_dotenv()
 
-_PROMPT_TEMPLATE = """Beantwoord de vraag op basis van de context. \
-Geef ook de filename van het document waarin de opgehaalde chunk staat, op een newline na het antwoord op de vraag.
+
+_PROMPT_TEMPLATE = """Answer the question based on the context. \
+Also include the filename and page number of the document containing the retrieved chunk, on a new line after the answer to the question.
 Context:
 {% for doc in documents %}
-  Bestand: {{ doc.meta['file_path'] }}
-  Inhoud: {{ doc.content }}
+  File: {{ doc.meta['source'] }}, pagina: {{ doc.meta['page'] | default('?') }}
+  Contents: {{ doc.content }}
 {% endfor %}
-Vraag: {{question}}"""
+Question: {{question}}"""
 
 _NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 _HF_LLM_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
