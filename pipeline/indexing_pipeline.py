@@ -109,6 +109,7 @@ def run_indexing(resume_from: int = 0) -> None:
         "strategy": "hi_res",
         "languages": ["ita"],
         "skip_infer_table_types": [],
+        "pdf_infer_table_structure": False, 
       },
     ))
     indexing_pipe.add_component("cleaner", DocumentCleaner())
