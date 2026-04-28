@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 from haystack import component, Document
 
-
 @component
 class DocumentCleaner:
   """
