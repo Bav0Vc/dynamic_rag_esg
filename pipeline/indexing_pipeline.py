@@ -27,7 +27,7 @@ load_dotenv()
 _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls"}
 
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
-_EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-1-v2.0", "intfloat/multilingual-e5-large-instruct"]
+_EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 
 
 def _make_chunker(chunker_name: str):

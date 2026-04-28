@@ -11,7 +11,7 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Configuration space axes
 CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
-EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-1-v2.0", "intfloat/multilingual-e5-large-instruct"]
+EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 LLMS = ["Qwen-2.5-14B", "Llama-3.3-70B", "Mistral-Large-2"]
 
 # Output paths
