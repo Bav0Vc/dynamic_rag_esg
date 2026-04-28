@@ -7,15 +7,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install CPU-only torch first so pip doesn't pull the large CUDA wheel
-# when sentence-transformers or transformers resolves it as a dependency
+# Install CUDA-enabled torch (CUDA 12.4, compatible with RTX 30/40 series)
+# This wheel bundles all CUDA libs so no separate CUDA toolkit install is needed.
 RUN pip install --no-cache-dir \
     torch==2.11.0 \
     torchvision==0.26.0 \
-    --index-url https://download.pytorch.org/whl/cpu
+    --index-url https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Download NLTK data required by haystack's EmbeddingBasedDocumentSplitter
+RUN python -c "import nltk; nltk.download('punkt_tab')"
 
 # Copy source code (data/ & evaluation/results/ are mounted as volumes)
 COPY config/     ./config/

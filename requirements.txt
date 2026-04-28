@@ -28,6 +28,7 @@ langchain-mistralai
 langchain-core==1.2.22
 
 # Utilities
+nltk>=3.9.1
 pandas==3.0.1
 numpy==2.4.3
 pillow==12.1.1
