@@ -117,48 +117,66 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
   query_pipe.connect("retriever.documents", "prompt_builder.documents")
   query_pipe.connect("prompt_builder", "llm")
 
+  _MAX_RETRIES = 6
+  _RETRY_BASE_DELAY = 15  # seconds; doubles each attempt
+
   results = []
   for item in golden_dataset:
     q = item["answer"]["user_question"]
-    try:
-      start_time = time.time()
-      response = query_pipe.run(
-        {"text_embedder": {"text": q}, "prompt_builder": {"question": q}},
-        include_outputs_from={"retriever"},
-      )
-      latency = time.time() - start_time
+    for attempt in range(_MAX_RETRIES):
+      try:
+        start_time = time.time()
+        response = query_pipe.run(
+          {"text_embedder": {"text": q}, "prompt_builder": {"question": q}},
+          include_outputs_from={"retriever"},
+        )
+        latency = time.time() - start_time
 
-      reply = response["llm"]["replies"][0]
-      final_answer = _extract_reply_text(reply)
+        reply = response["llm"]["replies"][0]
+        final_answer = _extract_reply_text(reply)
 
-      contexts = [doc.content for doc in response["retriever"]["documents"]]
-      # MistralChatGenerator returns ChatMessage with .meta; OpenAIGenerator returns a
-      # plain string and puts usage in response["llm"]["meta"][0]
-      if hasattr(reply, "meta"):
-        usage = reply.meta.get("usage", {})
-      else:
-        meta_list = response["llm"].get("meta", [{}])
-        usage = (meta_list[0].get("usage", {}) if meta_list else {})
+        contexts = [doc.content for doc in response["retriever"]["documents"]]
+        # MistralChatGenerator returns ChatMessage with .meta; OpenAIGenerator returns a
+        # plain string and puts usage in response["llm"]["meta"][0]
+        if hasattr(reply, "meta"):
+          usage = reply.meta.get("usage", {})
+        else:
+          meta_list = response["llm"].get("meta", [{}])
+          usage = (meta_list[0].get("usage", {}) if meta_list else {})
 
-      results.append({
-        "question_id": item["question_id"],
-        "question": q,
-        "requirement": item["question"],
-        "ground_truth": item["ground_truth"],
-        "expected_source": item["expected_source"],
-        "reference_contexts": list(item.get("reference_contexts", {}).values()),
-        "source_page": item.get("source_page"),
-        "Configuration": config_label,
-        "Chunker": chunker_name,
-        "Embedder": embedder_model,
-        "LLM": llm_name,
-        "contexts": contexts,
-        "answer": final_answer,
-        "latency": latency,
-        "prompt_tokens": usage.get("prompt_tokens", 0),
-        "completion_tokens": usage.get("completion_tokens", 0),
-      })
-    except Exception as exc:
-      print(f"  Error on '{config_label}' / question '{q}': {exc}")
+        results.append({
+          "question_id": item["question_id"],
+          "question": q,
+          "requirement": item["question"],
+          "ground_truth": item["ground_truth"],
+          "expected_source": item["expected_source"],
+          "reference_contexts": list(item.get("reference_contexts", {}).values()),
+          "source_page": item.get("source_page"),
+          "Configuration": config_label,
+          "Chunker": chunker_name,
+          "Embedder": embedder_model,
+          "LLM": llm_name,
+          "contexts": contexts,
+          "answer": final_answer,
+          "latency": latency,
+          "prompt_tokens": usage.get("prompt_tokens", 0),
+          "completion_tokens": usage.get("completion_tokens", 0),
+        })
+        break  # success — move to next question
+      except Exception as exc:
+        if attempt < _MAX_RETRIES - 1:
+          wait = _RETRY_BASE_DELAY * (2 ** attempt)
+          print(f"  [attempt {attempt + 1}/{_MAX_RETRIES}] '{q}' failed: {exc}. Retrying in {wait}s...")
+          remaining = float(wait)
+          while remaining > 0:
+            sleep_for = min(remaining, 5.0)
+            time.sleep(sleep_for)
+            remaining -= sleep_for
+            print(f"  Retrying in {remaining:.0f}s...")
+        else:
+          raise RuntimeError(
+            f"Question '{q}' (config: {config_label}) failed after {_MAX_RETRIES} attempts. "
+            f"Last error: {exc}"
+          ) from exc
 
   return results

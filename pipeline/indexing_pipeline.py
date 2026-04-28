@@ -104,19 +104,24 @@ def _make_doc_embedder(emb_cfg: dict):
   )
 
 
-def run_indexing() -> None:
-  print("Clearing entire Qdrant database...")
-  client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
-  for c in client.get_collections().collections:
-    print(f"  Deleting collection: {c.name}")
-    client.delete_collection(c.name)
-  print("Database cleared.\n")
-
+def run_indexing(resume_from: int = 0) -> None:
   combinations = list(product(_CHUNKERS, _EMBEDDERS))
-  config_counter = 0
 
-  for chunker_name, embedder_model in combinations:
-    config_counter += 1
+  if resume_from == 0:
+    print("Clearing entire Qdrant database...")
+    client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
+    for c in client.get_collections().collections:
+      print(f"  Deleting collection: {c.name}")
+      client.delete_collection(c.name)
+    print("Database cleared.\n")
+  else:
+    chunker, embedder = combinations[resume_from]
+    print(f"Resuming from combination {resume_from + 1}/{len(combinations)}: {chunker} | {embedder}\n")
+
+  for idx, (chunker_name, embedder_model) in enumerate(combinations):
+    if idx < resume_from:
+      continue
+
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
@@ -127,7 +132,7 @@ def run_indexing() -> None:
 
     config_name = f"{chunker_name} | {embedder_model}"
     current_time = datetime.now().strftime("%H:%M:%S")
-    print(f"[{current_time}] Indexing config ({config_counter}/{len(combinations)}): {config_name}")
+    print(f"[{current_time}] Indexing config ({idx + 1}/{len(combinations)}): {config_name}")
 
     collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
 
@@ -164,6 +169,7 @@ def run_indexing() -> None:
     indexing_pipe.run({"converter": {"sources": pdf_paths}})
     current_time = datetime.now().strftime("%H:%M:%S")
     print(f"[{current_time}] Finished indexing for {config_name}")
+  print(f"Finished indexing pipeline!")
 
 
 if __name__ == "__main__":
