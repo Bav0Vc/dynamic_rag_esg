@@ -24,8 +24,6 @@ mistral-haystack==1.2.0
 mistralai>=2.0.0
 # Evaluation
 ragas==0.4.3
-langchain-mistralai
-langchain-core==1.2.22
 
 # Utilities
 nltk>=3.9.1

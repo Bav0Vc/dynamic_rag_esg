@@ -15,7 +15,8 @@ RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    echo "from mistralai.client import Mistral" > /usr/local/lib/python3.13/site-packages/mistralai/__init__.py
 
 # Download NLTK data required by haystack's EmbeddingBasedDocumentSplitter
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"

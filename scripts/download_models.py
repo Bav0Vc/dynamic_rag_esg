@@ -10,6 +10,7 @@ MODELS = [
   "BAAI/bge-m3",
   "Snowflake/snowflake-arctic-embed-l-v2.0",
   "intfloat/multilingual-e5-large-instruct",
+  "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",  # ragas AnswerRelevancy evaluator
 ]
 
 for model_id in MODELS:

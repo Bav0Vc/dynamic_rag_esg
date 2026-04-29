@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import asyncio
 import traceback
@@ -8,68 +7,29 @@ import pandas as pd
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from ragas.llms import llm_factory
-from ragas.embeddings.base import embedding_factory
+from ragas.embeddings import HuggingFaceEmbeddings
 from ragas.metrics.collections import (
     Faithfulness,
-    AnswerRelevancy,
     ContextRecall,
     ContextPrecision,
+    AnswerRelevancy,
 )
 
 
 load_dotenv()
 
-_RAGAS_METRICS = ["faithfulness", "answer_relevancy", "context_recall", "context_precision"]
+_RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
-
-# ── Mistral response-cleaning helpers ────────────────────────────────────────
-# Mistral sometimes wraps JSON in markdown fences (```json...```), which breaks
-# RAGAS's internal JSON parser. We proxy the response to strip fences.
-# We monkey-patch AsyncOpenAI.chat.completions.create directly so the object
-# stays a real AsyncOpenAI instance — required for instructor's isinstance check,
-# which RAGAS uses to decide between AsyncInstructor vs Instructor (sync).
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
-
-
-class _CleanMessage:
-  def __init__(self, original):
-    self._orig = original
-    content = original.content or ""
-    m = _FENCE_RE.search(content.strip())
-    self.content = m.group(1).strip() if m else content
-
-  def __getattr__(self, name):
-    return getattr(self._orig, name)
-
-
-class _CleanChoice:
-  def __init__(self, original):
-    self._orig = original
-    self.message = _CleanMessage(original.message)
-
-  def __getattr__(self, name):
-    return getattr(self._orig, name)
-
-
-class _CleanResponse:
-  def __init__(self, original):
-    self._orig = original
-    self.choices = [_CleanChoice(c) for c in original.choices]
-
-  def __getattr__(self, name):
-    return getattr(self._orig, name)
 
 
 def _patch_client(client: AsyncOpenAI) -> AsyncOpenAI:
-  """Monkey-patch chat.completions.create on the instance to strip fences and retry 429s."""
+  """Monkey-patch chat.completions.create on the instance to retry 429s."""
   orig_create = client.chat.completions.create
 
-  async def _clean_create(*args, **kwargs):
+  async def _retrying_create(*args, **kwargs):
     for attempt in range(4):
       try:
-        resp = await orig_create(*args, **kwargs)
-        return _CleanResponse(resp)
+        return await orig_create(*args, **kwargs)
       except Exception as exc:
         msg = str(exc)
         is_rate_limit = "429" in msg or "rate_limit" in type(exc).__name__.lower()
@@ -80,14 +40,13 @@ def _patch_client(client: AsyncOpenAI) -> AsyncOpenAI:
         else:
           raise
 
-  # Shadow the method on the instance (not the class) so isinstance checks still pass.
-  client.chat.completions.create = _clean_create
+  client.chat.completions.create = _retrying_create
   return client
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
 
-async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, context_precision_m, row):
+async def score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row):
   user_input = str(row.get("question", ""))
   response = str(row.get("answer", "")) if row.get("answer") else ""
   retrieved_contexts = [str(c) for c in (row.get("contexts") or [])]
@@ -106,14 +65,6 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     print(f"Faithfulness failed: {type(e).__name__}: {e}")
     print(traceback.format_exc())
     scores["faithfulness"] = np.nan
-
-  try:
-    result = await answer_relevancy_m.ascore(user_input=user_input, response=response)
-    scores["answer_relevancy"] = result.value
-  except Exception as e:
-    print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
-    print(traceback.format_exc())
-    scores["answer_relevancy"] = np.nan
 
   try:
     result = await context_recall_m.ascore(
@@ -139,6 +90,17 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     print(traceback.format_exc())
     scores["context_precision"] = np.nan
 
+  try:
+    result = await answer_relevancy_m.ascore(
+      user_input=user_input,
+      response=response,
+    )
+    scores["answer_relevancy"] = result.value
+  except Exception as e:
+    print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
+    print(traceback.format_exc())
+    scores["answer_relevancy"] = np.nan
+
   return scores
 
 
@@ -162,18 +124,20 @@ async def evaluate_results():
     axis=1,
   )
 
-  mistral_api_key = os.getenv("MISTRAL_API_KEY")
-  # Create a real AsyncOpenAI instance (required for instructor's isinstance check),
-  # then patch its create method to strip Mistral's markdown fences.
-  async_client = _patch_client(AsyncOpenAI(base_url="https://api.mistral.ai/v1", api_key=mistral_api_key))
+  hf_token = os.getenv("HF_TOKEN")
+  llm_client = _patch_client(AsyncOpenAI(base_url="https://router.huggingface.co/featherless-ai/v1", api_key=hf_token))
 
-  evaluator_llm = llm_factory("mistral-large-2407", provider="openai", client=async_client)
-  evaluator_embeddings = embedding_factory("openai", model="mistral-embed", client=async_client)
+  # Gemma-2-9B: independent family from all three evaluated models (Qwen, Llama, Mistral),
+  # 8k context window, strong Italian/English multilingual support.
+  evaluator_llm = llm_factory("google/gemma-2-9b-it", provider="openai", client=llm_client)
+
+  # Independent from the three evaluated embedders (bge-m3, arctic-embed, multilingual-e5).
+  evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
 
   faithfulness_m = Faithfulness(llm=evaluator_llm)
-  answer_relevancy_m = AnswerRelevancy(llm=evaluator_llm, embeddings=evaluator_embeddings)
   context_recall_m = ContextRecall(llm=evaluator_llm)
   context_precision_m = ContextPrecision(llm=evaluator_llm)
+  answer_relevancy_m = AnswerRelevancy(llm=evaluator_llm, embeddings=evaluator_embeddings)
 
   leaderboard = []
   all_per_question = []
@@ -185,7 +149,7 @@ async def evaluate_results():
     rows_scores = []
     for _, row in subset.iterrows():
       print(f"  [{row['question_id']}]")
-      scores = await score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, context_precision_m, row)
+      scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
       rows_scores.append(scores)
 
     scores_df = pd.DataFrame(rows_scores)
@@ -208,9 +172,9 @@ async def evaluate_results():
       "Latency (s)": round(subset["latency"].mean(), 3),
       "Source Attribution": round(subset["source_attribution"].mean(), 2),
       "Faithfulness": _mean("faithfulness"),
-      "Answer Relevancy": _mean("answer_relevancy"),
       "Context Recall": _mean("context_recall"),
       "Context Precision": _mean("context_precision"),
+      "Answer Relevancy": _mean("answer_relevancy"),
     })
 
   # ── Save per-question scores ──────────────────────────────────────────────

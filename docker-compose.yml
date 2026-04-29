@@ -46,6 +46,7 @@ services:
     environment:
       - UNSTRUCTURED_API_URL=http://unstructured-api:8000/general/v0/general
       - TZ=Europe/Brussels
+      - PYTHONDONTWRITEBYTECODE=1
 
 volumes:
   hf_cache: # persists HuggingFace model cache across container restarts
