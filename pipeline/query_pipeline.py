@@ -18,7 +18,7 @@ _PROMPT_TEMPLATE = """Answer the question based on the context. \
 Also include the filename and page number of the document containing the retrieved chunk, on a new line after the answer to the question.
 Context:
 {% for doc in documents %}
-  File: {{ doc.meta['source'] }}, Page: {{ doc.meta['page'] | default('?') }}
+  File: {{ doc.meta['source'] }}, Page: {{ doc.meta.get('page', doc.meta.get('page_name', '?')) }}
   Contents: {{ doc.content }}
 {% endfor %}
 Question: {{question}}"""
