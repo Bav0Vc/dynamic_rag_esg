@@ -5,7 +5,6 @@ __pycache__/
 #results/
 .claude/
 /tests
-/dynamic_rag_esg.egg-info
 
 /notes
 
