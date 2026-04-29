@@ -75,7 +75,7 @@ def _patch_client(client: AsyncOpenAI) -> AsyncOpenAI:
         is_rate_limit = "429" in msg or "rate_limit" in type(exc).__name__.lower()
         if is_rate_limit and attempt < 3:
           wait = 5 * (2 ** attempt)
-          print(f"    Rate limited (429). Retrying in {wait}s…")
+          print(f"Rate limited (429). Retrying in {wait}s…")
           await asyncio.sleep(wait)
         else:
           raise
@@ -103,7 +103,7 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     )
     scores["faithfulness"] = result.value
   except Exception as e:
-    print(f"    Faithfulness failed: {type(e).__name__}: {e}")
+    print(f"Faithfulness failed: {type(e).__name__}: {e}")
     print(traceback.format_exc())
     scores["faithfulness"] = np.nan
 
@@ -111,7 +111,7 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     result = await answer_relevancy_m.ascore(user_input=user_input, response=response)
     scores["answer_relevancy"] = result.value
   except Exception as e:
-    print(f"    AnswerRelevancy failed: {type(e).__name__}: {e}")
+    print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
     print(traceback.format_exc())
     scores["answer_relevancy"] = np.nan
 
@@ -123,7 +123,7 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     )
     scores["context_recall"] = result.value
   except Exception as e:
-    print(f"    ContextRecall failed: {type(e).__name__}: {e}")
+    print(f"ContextRecall failed: {type(e).__name__}: {e}")
     print(traceback.format_exc())
     scores["context_recall"] = np.nan
 
@@ -135,7 +135,7 @@ async def score_sample(faithfulness_m, answer_relevancy_m, context_recall_m, con
     )
     scores["context_precision"] = result.value
   except Exception as e:
-    print(f"    ContextPrecision failed: {type(e).__name__}: {e}")
+    print(f"ContextPrecision failed: {type(e).__name__}: {e}")
     print(traceback.format_exc())
     scores["context_precision"] = np.nan
 
