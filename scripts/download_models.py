@@ -17,4 +17,4 @@ for model_id in MODELS:
   SentenceTransformer(model_id)
   print(f"✓ {model_id} cached")
 
-print("\nAll models cached. Safe to run the indexing pipeline.")
+print("\nAll models cached. Ready to run the indexing pipeline.")

@@ -24,7 +24,7 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 load_dotenv()
 
-_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx", ".xls"}
+_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
 _EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]

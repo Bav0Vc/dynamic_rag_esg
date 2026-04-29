@@ -19,3 +19,5 @@ data/raw
 data/raw/*
 data/golden_set
 data/golden_set/*
+data/snapshots
+data/snapshots/*
