@@ -27,7 +27,7 @@ load_dotenv()
 _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
-_EMBEDDERS = ["BAAI/bge-m3", "snowflake/arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
+_EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 
 
 def _make_chunker(chunker_name: str):
@@ -79,7 +79,7 @@ def run_indexing(resume_from: int = 0) -> None:
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
-      "llm.name": "Qwen-2.5-14B",  # LLM unused during indexing (valid default still required)
+      "llm.name": "Qwen-2.5-14B-Instruct",  # LLM unused during indexing (valid default still required)
     }
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
     emb_cfg = config["embedding"]
