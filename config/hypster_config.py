@@ -20,16 +20,12 @@ def embedding_config(hp: HP):
     name="model",
     default="BAAI/bge-m3",
   )
-  if model == "BAAI/bge-m3":
-    backend = "sentence-transformers"
-    api_model = "BAAI/bge-m3"
-  elif model == "snowflake/arctic-embed-l-v2.0":
-    backend = "sentence-transformers"
-    api_model = "Snowflake/snowflake-arctic-embed-l-v2.0"
-  else:
-    backend = "sentence-transformers"
-    api_model = "intfloat/multilingual-e5-large-instruct"
-  return {"model": model, "backend": backend, "api_model": api_model, "dims": 1024}
+  api_model_map = {
+    "BAAI/bge-m3": "BAAI/bge-m3",
+    "snowflake/arctic-embed-l-v2.0": "Snowflake/snowflake-arctic-embed-l-v2.0",
+    "intfloat/multilingual-e5-large-instruct": "intfloat/multilingual-e5-large-instruct",
+  }
+  return {"model": model, "backend": "sentence-transformers", "api_model": api_model_map[model], "dims": 1024}
 
 
 def llm_config(hp: HP):

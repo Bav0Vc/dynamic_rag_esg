@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 from haystack.utils import Secret
 from haystack.components.builders import PromptBuilder
 from haystack.components.generators import OpenAIGenerator
+from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
-from haystack.components.embedders import OpenAITextEmbedder, HuggingFaceAPITextEmbedder, SentenceTransformersTextEmbedder
 
 
 load_dotenv()
@@ -40,36 +40,12 @@ def _extract_reply_text(reply) -> str:
   return str(reply)
 
 
-def _build_text_embedder(emb_cfg: dict):
-  if emb_cfg["backend"] == "sentence-transformers":
-    return SentenceTransformersTextEmbedder(model=emb_cfg["api_model"])
-  if emb_cfg["backend"] == "nvidia":
-    return OpenAITextEmbedder(
-      model=emb_cfg["api_model"],
-      api_key=Secret.from_env_var("NVIDIA_API_KEY"),
-      api_base_url=_NVIDIA_BASE_URL,
-    )
-  return HuggingFaceAPITextEmbedder(
-    api_type="serverless_inference_api",
-    api_params={"model": emb_cfg["api_model"]},
-    token=Secret.from_env_var("HF_TOKEN"),
-  )
-
-
 def _build_llm(llm_cfg: dict):
   if llm_cfg["backend"] == "mistral":
     return MistralChatGenerator(model=llm_cfg["api_model"])
   if llm_cfg["backend"] == "nvidia":
-    return OpenAIGenerator(
-      model=llm_cfg["api_model"],
-      api_key=Secret.from_env_var("NVIDIA_API_KEY"),
-      api_base_url=_NVIDIA_BASE_URL,
-    )
-  return OpenAIGenerator(
-    model=llm_cfg["api_model"],
-    api_key=Secret.from_env_var("HF_TOKEN"),
-    api_base_url=_HF_LLM_BASE_URL,
-  )
+    return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("NVIDIA_API_KEY"), api_base_url=_NVIDIA_BASE_URL)
+  return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
 
 
 def run_query_pipeline(config: dict, golden_dataset: list) -> list:
@@ -101,7 +77,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
     print(f"  -> Could not connect to collection '{collection_name}'. Skipping. {exc}")
     return []
 
-  text_embedder = _build_text_embedder(emb_cfg)
+  text_embedder = SentenceTransformersTextEmbedder(model=emb_cfg["api_model"])
   llm_instance = _build_llm(llm_cfg)
 
   query_pipe = Pipeline()

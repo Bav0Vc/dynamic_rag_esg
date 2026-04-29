@@ -7,9 +7,15 @@ __pycache__/
 /tests
 /dynamic_rag_esg.egg-info
 
-data/golden_set/Questions
-data/raw/
 /notes
 
 # Docker
 *.dockerignore
+
+# Dataset
+data/
+data/*
+data/raw
+data/raw/*
+data/golden_set
+data/golden_set/*

@@ -20,7 +20,7 @@ from ragas.metrics.collections import (
 load_dotenv()
 
 _RAGAS_METRICS = ["faithfulness", "answer_relevancy", "context_recall", "context_precision"]
-_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "cost", "source_attribution", "prompt_tokens", "completion_tokens"]
+_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
 # ── Mistral response-cleaning helpers ────────────────────────────────────────
 # Mistral sometimes wraps JSON in markdown fences (```json...```), which breaks
@@ -83,18 +83,6 @@ def _patch_client(client: AsyncOpenAI) -> AsyncOpenAI:
   # Shadow the method on the instance (not the class) so isinstance checks still pass.
   client.chat.completions.create = _clean_create
   return client
-
-
-# ── Cost helper ───────────────────────────────────────────────────────────────
-
-def calculate_cost(llm_name, prompt_tokens, completion_tokens):
-  prices = {
-    "Qwen-2.5-14B": {"in": 0.100, "out": 0.100},
-    "Llama-3.3-70B": {"in": 0.120, "out": 0.120},
-    "Mistral-Large-2": {"in": 2.000, "out": 6.000},
-  }
-  p = prices.get(llm_name, {"in": 0, "out": 0})
-  return (prompt_tokens * p["in"] + completion_tokens * p["out"]) / 1_000_000
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
@@ -169,10 +157,6 @@ async def evaluate_results():
 
   df = pd.DataFrame(data)
 
-  df["cost"] = df.apply(
-    lambda row: calculate_cost(row["LLM"], row["prompt_tokens"], row["completion_tokens"]),
-    axis=1,
-  )
   df["source_attribution"] = df.apply(
     lambda row: 1.0 if str(row.get("expected_source", "")) in str(row.get("answer", "")) else 0.0,
     axis=1,
@@ -222,7 +206,6 @@ async def evaluate_results():
       "Embedder": subset.iloc[0]["Embedder"],
       "LLM": subset.iloc[0]["LLM"],
       "Latency (s)": round(subset["latency"].mean(), 3),
-      "Cost per Query ($)": round(subset["cost"].mean(), 6),
       "Source Attribution": round(subset["source_attribution"].mean(), 2),
       "Faithfulness": _mean("faithfulness"),
       "Answer Relevancy": _mean("answer_relevancy"),
