@@ -1,4 +1,4 @@
-from hypster import HP, instantiate
+from hypster import HP
 
 
 def chunking_config(hp: HP):
@@ -44,7 +44,7 @@ def llm_config(hp: HP):
   elif name == "Llama-3.3-70B":
     backend = "nvidia"
     api_model = "meta/llama-3.3-70b-instruct"
-  else:  # Mistral-Large-2
+  else:
     backend = "mistral"
     api_model = "mistral-large-latest"
   return {"name": name, "backend": backend, "api_model": api_model}

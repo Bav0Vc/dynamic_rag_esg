@@ -41,11 +41,12 @@ def _extract_reply_text(reply) -> str:
 
 
 def _build_llm(llm_cfg: dict):
-  if llm_cfg["backend"] == "mistral":
+  if llm_cfg["backend"] == "mistral": # Mistral-Large-2
     return MistralChatGenerator(model=llm_cfg["api_model"])
-  if llm_cfg["backend"] == "nvidia":
+  if llm_cfg["backend"] == "nvidia": # Llama-3.3-70B
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("NVIDIA_API_KEY"), api_base_url=_NVIDIA_BASE_URL)
-  return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
+  if llm_cfg["backend"] == "hf": # Qwen-2.5-14B
+    return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
 
 
 def run_query_pipeline(config: dict, golden_dataset: list) -> list:
