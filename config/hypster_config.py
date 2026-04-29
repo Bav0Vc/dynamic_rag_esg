@@ -7,47 +7,71 @@ def chunking_config(hp: HP):
     name="chunker_name",
     default="RecursiveSplitter",
   )
-  return {"chunker_name": chunker_name}
+  return { "chunker_name": chunker_name }
 
+
+# def embedding_config(hp: HP):
+#   model = hp.select(
+#     [
+#       "BAAI/bge-m3",
+#       "snowflake/arctic-embed-l-v2.0",
+#       "intfloat/multilingual-e5-large-instruct",
+#     ],
+#     name="model",
+#     default="BAAI/bge-m3",
+#   )
+#   api_model_map = {
+#     "BAAI/bge-m3": "BAAI/bge-m3",
+#     "snowflake/arctic-embed-l-v2.0": "Snowflake/snowflake-arctic-embed-l-v2.0",
+#     "intfloat/multilingual-e5-large-instruct": "intfloat/multilingual-e5-large-instruct",
+#   }
+#   return {"model": model, "backend": "sentence-transformers", "api_model": api_model_map[model], "dims": 1024}
 
 def embedding_config(hp: HP):
   model = hp.select(
     [
       "BAAI/bge-m3",
-      "snowflake/arctic-embed-l-v2.0",
+      "Snowflake/snowflake-arctic-embed-l-v2.0",
       "intfloat/multilingual-e5-large-instruct",
     ],
     name="model",
     default="BAAI/bge-m3",
   )
-  api_model_map = {
-    "BAAI/bge-m3": "BAAI/bge-m3",
-    "snowflake/arctic-embed-l-v2.0": "Snowflake/snowflake-arctic-embed-l-v2.0",
-    "intfloat/multilingual-e5-large-instruct": "intfloat/multilingual-e5-large-instruct",
-  }
-  return {"model": model, "backend": "sentence-transformers", "api_model": api_model_map[model], "dims": 1024}
 
+  return { "model": model, "api_model": model, "backend": "sentence-transformers", "dims": 1024 }
+
+# def llm_config(hp: HP):
+#   name = hp.select(
+#     [
+#       "Qwen-2.5-14B-Instruct",
+#       "Llama-3.3-70B-Instruct",
+#       "Mistral-Large-2",
+#     ],
+#     name="name",
+#     default="Qwen-2.5-14B-Instruct",
+#   )
+#   if name == "Qwen-2.5-14B-Instruct":
+#     backend = "hf"
+#     api_model = "Qwen/Qwen2.5-14B-Instruct"
+#   elif name == "Llama-3.3-70B-Instruct":
+#     backend = "hf"
+#     api_model = "meta-llama/Llama-3.3-70B-Instruct"
+#   else:
+#     backend = "mistral"
+#     api_model = "mistral-large-latest"
+#   return {"name": name, "backend": backend, "api_model": api_model}
 
 def llm_config(hp: HP):
-  name = hp.select(
-    [
-      "Qwen-2.5-14B",
-      "Llama-3.3-70B",
-      "Mistral-Large-2",
-    ],
-    name="name",
-    default="Qwen-2.5-14B",
-  )
-  if name == "Qwen-2.5-14B":
-    backend = "hf"
-    api_model = "Qwen/Qwen2.5-14B-Instruct"
-  elif name == "Llama-3.3-70B":
-    backend = "nvidia"
-    api_model = "meta/llama-3.3-70b-instruct"
-  else:
-    backend = "mistral"
-    api_model = "mistral-large-latest"
-  return {"name": name, "backend": backend, "api_model": api_model}
+  configs = {
+    "Qwen-2.5-14B-Instruct": {"backend": "hf", "api_model": "Qwen/Qwen2.5-14B-Instruct"},
+    "Llama-3.3-70B-Instruct": {"backend": "hf", "api_model": "meta-llama/Llama-3.3-70B-Instruct"},
+    "Mistral-Large-2": {"backend": "mistral", "api_model": "mistral-large-latest"},
+  }
+
+  name = hp.select(list(configs.keys()), name="name", default="Qwen-2.5-14B-Instruct")
+    
+  # Merge the name key with the selected configuration dictionary
+  return { "name": name, **configs[name] }
 
 
 def pipeline_config(hp: HP):
