@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from haystack import Pipeline
-from datetime import datetime
 from itertools import product
 from dotenv import load_dotenv
 from haystack.utils import Secret
@@ -85,8 +84,7 @@ def run_indexing(resume_from: int = 0) -> None:
     emb_cfg = config["embedding"]
 
     config_name = f"{chunker_name} | {embedder_model}"
-    current_time = datetime.now().strftime("%H:%M:%S")
-    print(f"[{current_time}] Indexing config ({idx + 1}/{len(combinations)}): {config_name}")
+    print(f"Indexing config ({idx + 1}/{len(combinations)}): {config_name}")
 
     collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
 
@@ -123,8 +121,7 @@ def run_indexing(resume_from: int = 0) -> None:
     indexing_pipe.connect("embedder.documents", "writer.documents")
 
     indexing_pipe.run({"converter": {"paths": all_file_paths}})
-    current_time = datetime.now().strftime("%H:%M:%S")
-    print(f"[{current_time}] Finished indexing for {config_name}")
+    print(f"Finished indexing for {config_name}")
 
   print("Finished indexing pipeline!")
 

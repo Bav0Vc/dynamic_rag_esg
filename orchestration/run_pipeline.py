@@ -3,8 +3,8 @@ import sys
 import asyncio
 from itertools import product
 from dotenv import load_dotenv
-from scripts.logger import setup_logging
 from qdrant_client import QdrantClient
+from scripts.logger import setup_logging
 from evaluation.ragas_eval import evaluate_results
 from orchestration.benchmark_loop import run_benchmark
 from pipeline.indexing_pipeline import run_indexing, _CHUNKERS, _EMBEDDERS

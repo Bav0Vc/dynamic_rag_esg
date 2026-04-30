@@ -5,7 +5,6 @@ import asyncio
 import traceback
 import numpy as np
 import pandas as pd
-from datetime import datetime
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from ragas.llms import llm_factory
@@ -168,17 +167,15 @@ async def evaluate_results():
       print(f"Skipping {config} (already evaluated)")
       continue
 
-    current_time_config = datetime.now().strftime("%H:%M:%S")
-    print(f"\n[{current_time_config}] | Evaluating: {config}")
+    print(f"\nEvaluating: {config}")
     subset = df[df["Configuration"] == config].reset_index(drop=True)
 
     rows_scores = []
     for _, row in subset.iterrows():
       _token_tracker.reset()
       scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
-      current_time_question = datetime.now().strftime("%H:%M:%S")
       print(
-        f"[{current_time_question}] |   [{row['question_id']}]  "
+        f"  [{row['question_id']}]  "
         f"eval-tokens → prompt: {_token_tracker.prompt_tokens:,}  "
         f"completion: {_token_tracker.completion_tokens:,}  "
         f"calls: {_token_tracker.calls}"
