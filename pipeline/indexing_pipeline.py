@@ -106,7 +106,7 @@ def run_indexing(resume_from: int = 0) -> None:
       document_creation_mode="one-doc-per-element",
       unstructured_kwargs={
         "strategy": "hi_res",
-        "languages": ["ita"],
+        "languages": ["ita", "eng"],
         "skip_infer_table_types": [],
         "pdf_infer_table_structure": False, 
       },

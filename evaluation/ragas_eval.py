@@ -25,9 +25,9 @@ _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "lat
 
 _OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 # # From any directory, e.g. C:\Users\vanco\Repos\dynamic_rag_esg
-# Set-Content -Path "Modelfile" -Value "FROM gemma3:12b`nPARAMETER num_predict -1`nPARAMETER num_ctx 32768"
-# ollama create gemma3-eval:12b -f Modelfile
-_OLLAMA_MODEL = "gemma3-eval:12b"
+# Set-Content -Path "Modelfile" -Value "FROM mervinpraison/llama3.1-instruct:8b`nPARAMETER num_predict -1`nPARAMETER num_ctx 131072"
+# ollama create llama3.1-eval:8b -f Modelfile
+_OLLAMA_MODEL = "llama3.1-eval:8b"
 
 
 class _TokenTracker:
@@ -40,6 +40,24 @@ class _TokenTracker:
     self.calls = 0
 
 _token_tracker = _TokenTracker()
+
+
+class _OllamaTransport(httpx.AsyncHTTPTransport):
+  """Forces a minimum max_tokens on every request so instructor's retry-doubling
+  logic (which starts at 1024) never hits the output limit mid-JSON."""
+  _MIN_MAX_TOKENS = 8192
+
+  async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    try:
+      body = json.loads(request.content)
+      if body.get("max_tokens", 0) < self._MIN_MAX_TOKENS:
+        body["max_tokens"] = self._MIN_MAX_TOKENS
+        new_content = json.dumps(body).encode()
+        headers = {**dict(request.headers), "content-length": str(len(new_content))}
+        request = httpx.Request(request.method, request.url, headers=headers, content=new_content)
+    except Exception:
+      pass
+    return await super().handle_async_request(request)
 
 
 async def _on_response(response: httpx.Response) -> None:
@@ -150,7 +168,7 @@ async def evaluate_results():
 
   already_done = {row["Configuration"] for row in existing_leaderboard}
 
-  http_client = httpx.AsyncClient(event_hooks={"response": [_on_response]})
+  http_client = httpx.AsyncClient(transport=_OllamaTransport(), event_hooks={"response": [_on_response]})
   llm_client = AsyncOpenAI(base_url=_OLLAMA_BASE_URL, api_key="ollama", http_client=http_client)
 
   evaluator_llm = llm_factory(_OLLAMA_MODEL, provider="openai", client=llm_client)

@@ -1,16 +1,17 @@
+from sentence_transformers import SentenceTransformer
+
 """
 Pre-downloads all embedding models into the HuggingFace cache.
-Run this once before the indexing pipeline:
+Run once before the indexing pipeline:
 
   docker exec -it dynamic_rag_esg-app-1 python scripts/download_models.py
 """
-from sentence_transformers import SentenceTransformer
-
 MODELS = [
   "BAAI/bge-m3",
   "Snowflake/snowflake-arctic-embed-l-v2.0",
   "intfloat/multilingual-e5-large-instruct",
-  "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",  # ragas AnswerRelevancy evaluator
+  "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",  # RAGAS-evaluation: AnswerRelevancy evaluator
+  "sentence-transformers/all-MiniLM-L6-v2",                       # Semantic chunking: document embedder 
 ]
 
 for model_id in MODELS:
