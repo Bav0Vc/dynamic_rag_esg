@@ -2,6 +2,8 @@ import os
 import json
 import asyncio
 import traceback
+import httpx
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -22,7 +24,35 @@ _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
 _OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
-_OLLAMA_MODEL = "gemma2:9b"
+# gemma3:12b: 128K context window, strong Italian+English multilingual, independent from
+# the three evaluated model families (Qwen, Llama, Mistral). Run: ollama pull gemma3:12b
+_OLLAMA_MODEL = "gemma3:12b"
+
+
+class _TokenTracker:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.calls = 0
+
+
+_token_tracker = _TokenTracker()
+
+
+async def _on_response(response: httpx.Response) -> None:
+    await response.aread()
+    try:
+        data = json.loads(response.content)
+        usage = data.get("usage") or {}
+        if usage:
+            _token_tracker.prompt_tokens += usage.get("prompt_tokens", 0)
+            _token_tracker.completion_tokens += usage.get("completion_tokens", 0)
+            _token_tracker.calls += 1
+    except Exception:
+        pass
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
@@ -120,10 +150,9 @@ async def evaluate_results():
 
   already_done = {row["Configuration"] for row in existing_leaderboard}
 
-  llm_client = AsyncOpenAI(base_url=_OLLAMA_BASE_URL, api_key="ollama")
+  http_client = httpx.AsyncClient(event_hooks={"response": [_on_response]})
+  llm_client = AsyncOpenAI(base_url=_OLLAMA_BASE_URL, api_key="ollama", http_client=http_client)
 
-  # Gemma-2-9B: independent family from all three evaluated models (Qwen, Llama, Mistral),
-  # 8k context window, strong Italian/English multilingual support. Runs locally via Ollama.
   evaluator_llm = llm_factory(_OLLAMA_MODEL, provider="openai", client=llm_client)
 
   # Independent from the three evaluated embedders (bge-m3, arctic-embed, multilingual-e5).
@@ -139,13 +168,21 @@ async def evaluate_results():
       print(f"Skipping {config} (already evaluated)")
       continue
 
-    print(f"\nEvaluating: {config}")
+    current_time_config = datetime.now().strftime("%H:%M:%S")
+    print(f"\n[{current_time_config}] | Evaluating: {config}")
     subset = df[df["Configuration"] == config].reset_index(drop=True)
 
     rows_scores = []
     for _, row in subset.iterrows():
-      print(f"  [{row['question_id']}]")
+      _token_tracker.reset()
       scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
+      current_time_question = datetime.now().strftime("%H:%M:%S")
+      print(
+        f"[{current_time_question}] |   [{row['question_id']}]  "
+        f"eval-tokens → prompt: {_token_tracker.prompt_tokens:,}  "
+        f"completion: {_token_tracker.completion_tokens:,}  "
+        f"calls: {_token_tracker.calls}"
+      )
       rows_scores.append(scores)
 
     scores_df = pd.DataFrame(rows_scores)
