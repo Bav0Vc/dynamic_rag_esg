@@ -26,5 +26,6 @@ COPY config/     ./config/
 COPY pipeline/   ./pipeline/
 COPY orchestration/ ./orchestration/
 COPY evaluation/ ./evaluation/
+COPY logs/       ./logs/
 
 CMD ["python", "-m", "orchestration.run_pipeline"]
