@@ -25,7 +25,7 @@ _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "lat
 
 _OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 # # From any directory, e.g. C:\Users\vanco\Repos\dynamic_rag_esg
-# Set-Content -Path "Modelfile" -Value "FROM gemma3:12b`nPARAMETER num_predict -1`nPARAMETER num_ctx 16384"
+# Set-Content -Path "Modelfile" -Value "FROM gemma3:12b`nPARAMETER num_predict -1`nPARAMETER num_ctx 32768"
 # ollama create gemma3-eval:12b -f Modelfile
 _OLLAMA_MODEL = "gemma3-eval:12b"
 
@@ -232,6 +232,6 @@ async def evaluate_results():
 
 
 if __name__ == "__main__":
-  from logs.logger import setup_logging
+  from scripts.logger import setup_logging
   setup_logging("ragas_eval")
   asyncio.run(evaluate_results())

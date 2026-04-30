@@ -22,7 +22,7 @@ class _Tee:
 
 
 def setup_logging(script_name: str) -> None:
-  logs_dir = os.path.dirname(os.path.abspath(__file__))
+  logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
   timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
   log_path = os.path.join(logs_dir, f"{script_name}_{timestamp}.log")
   log_file = open(log_path, "w", encoding="utf-8", buffering=1)

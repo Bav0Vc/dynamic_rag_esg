@@ -130,6 +130,6 @@ def run_indexing(resume_from: int = 0) -> None:
 
 
 if __name__ == "__main__":
-  from logs.logger import setup_logging
+  from scripts.logger import setup_logging
   setup_logging("indexing_pipeline")
   run_indexing()

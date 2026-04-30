@@ -7,6 +7,8 @@ results/
 /tests
 
 /notes
+logs/
+logs/*
 
 # Docker
 *.dockerignore

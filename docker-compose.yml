@@ -31,6 +31,7 @@ services:
       - ./pipeline:/app/pipeline
       - ./orchestration:/app/orchestration
       - ./evaluation:/app/evaluation
+      - ./logs:/app/logs
       - ./scripts:/app/scripts
       - ./data:/app/data
       - hf_cache:/root/.cache/huggingface

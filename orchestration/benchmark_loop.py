@@ -59,6 +59,6 @@ def run_benchmark() -> None:
 
 
 if __name__ == "__main__":
-  from logs.logger import setup_logging
+  from scripts.logger import setup_logging
   setup_logging("benchmark_loop")
   run_benchmark()
