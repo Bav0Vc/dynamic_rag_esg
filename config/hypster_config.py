@@ -3,7 +3,11 @@ from hypster import HP
 
 def chunking_config(hp: HP):
   chunker_name = hp.select(
-    ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"],
+    [
+      "RecursiveSplitter",
+      "FixedSizeWordSplitter",
+      "SemanticEmbeddingChunker"
+    ],
     name="chunker_name",
     default="RecursiveSplitter",
   )
@@ -24,9 +28,18 @@ def embedding_config(hp: HP):
 
 def llm_config(hp: HP):
   configs = {
-    "Qwen-2.5-14B-Instruct": {"backend": "hf", "api_model": "Qwen/Qwen2.5-14B-Instruct"},
-    "Llama-3.3-70B-Instruct": {"backend": "hf", "api_model": "meta-llama/Llama-3.3-70B-Instruct"},
-    "Mistral-Large-2": {"backend": "mistral", "api_model": "mistral-large-latest"},
+    "Qwen-2.5-14B-Instruct": {
+      "backend": "hf",
+      "api_model": "Qwen/Qwen2.5-14B-Instruct"
+    },
+    "Llama-3.3-70B-Instruct": {
+      "backend": "hf",
+      "api_model": "meta-llama/Llama-3.3-70B-Instruct"
+    },
+    "Mistral-Large-2": {
+      "backend": "mistral",
+      "api_model": "mistral-large-latest"
+    },
   }
 
   name = hp.select(list(configs.keys()), name="name", default="Qwen-2.5-14B-Instruct")
