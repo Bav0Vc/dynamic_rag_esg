@@ -3,6 +3,7 @@ import json
 import pandas as pd
 from itertools import product
 from hypster import instantiate
+from scripts.logger import setup_logging
 from config.hypster_config import pipeline_config
 from pipeline.query_pipeline import run_query_pipeline
 
@@ -59,6 +60,5 @@ def run_benchmark() -> None:
 
 
 if __name__ == "__main__":
-  from scripts.logger import setup_logging
   setup_logging("benchmark_loop")
   run_benchmark()

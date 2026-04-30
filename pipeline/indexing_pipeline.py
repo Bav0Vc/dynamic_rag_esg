@@ -4,6 +4,7 @@ from haystack import Pipeline
 from itertools import product
 from dotenv import load_dotenv
 from haystack.utils import Secret
+from scripts.logger import setup_logging
 # Converter & Cleaner
 from pipeline.components.document_cleaner import DocumentCleaner
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
@@ -127,6 +128,5 @@ def run_indexing(resume_from: int = 0) -> None:
 
 
 if __name__ == "__main__":
-  from scripts.logger import setup_logging
   setup_logging("indexing_pipeline")
   run_indexing()

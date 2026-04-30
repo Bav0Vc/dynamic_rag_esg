@@ -8,6 +8,7 @@ import pandas as pd
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from ragas.llms import llm_factory
+from scripts.logger import setup_logging
 from ragas.embeddings import HuggingFaceEmbeddings
 from ragas.metrics.collections import (
   Faithfulness,
@@ -229,6 +230,5 @@ async def evaluate_results():
 
 
 if __name__ == "__main__":
-  from scripts.logger import setup_logging
   setup_logging("ragas_eval")
   asyncio.run(evaluate_results())
