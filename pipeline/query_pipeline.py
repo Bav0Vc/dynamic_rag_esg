@@ -135,7 +135,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
       except Exception as exc:
         if attempt < _MAX_RETRIES - 1:
           wait = _RETRY_BASE_DELAY * (2 ** attempt)
-          print(f"[attempt {attempt + 1}/{_MAX_RETRIES}] '{q}' failed: {exc}. Retrying in {wait}s...")
+          print(f"[attempt {attempt + 1}/{_MAX_RETRIES}] '{q}' failed: {exc}.\nRetrying in {wait}s...")
           remaining = float(wait)
           while remaining > 0:
             sleep_for = min(remaining, 5.0)
