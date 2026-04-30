@@ -1,20 +1,20 @@
 import os
 import json
+import httpx
 import asyncio
 import traceback
-import httpx
-from datetime import datetime
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
+from datetime import datetime
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
 from ragas.llms import llm_factory
 from ragas.embeddings import HuggingFaceEmbeddings
 from ragas.metrics.collections import (
-    Faithfulness,
-    ContextRecall,
-    ContextPrecision,
-    AnswerRelevancy,
+  Faithfulness,
+  ContextRecall,
+  ContextPrecision,
+  AnswerRelevancy,
 )
 
 
@@ -24,35 +24,35 @@ _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
 _OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
-# gemma3:12b: 128K context window, strong Italian+English multilingual, independent from
-# the three evaluated model families (Qwen, Llama, Mistral). Run: ollama pull gemma3:12b
-_OLLAMA_MODEL = "gemma3:12b"
+# # From any directory, e.g. C:\Users\vanco\Repos\dynamic_rag_esg
+# Set-Content -Path "Modelfile" -Value "FROM gemma3:12b`nPARAMETER num_predict -1`nPARAMETER num_ctx 16384"
+# ollama create gemma3-eval:12b -f Modelfile
+_OLLAMA_MODEL = "gemma3-eval:12b"
 
 
 class _TokenTracker:
-    def __init__(self):
-        self.reset()
+  def __init__(self):
+    self.reset()
 
-    def reset(self):
-        self.prompt_tokens = 0
-        self.completion_tokens = 0
-        self.calls = 0
-
+  def reset(self):
+    self.prompt_tokens = 0
+    self.completion_tokens = 0
+    self.calls = 0
 
 _token_tracker = _TokenTracker()
 
 
 async def _on_response(response: httpx.Response) -> None:
-    await response.aread()
-    try:
-        data = json.loads(response.content)
-        usage = data.get("usage") or {}
-        if usage:
-            _token_tracker.prompt_tokens += usage.get("prompt_tokens", 0)
-            _token_tracker.completion_tokens += usage.get("completion_tokens", 0)
-            _token_tracker.calls += 1
-    except Exception:
-        pass
+  await response.aread()
+  try:
+    data = json.loads(response.content)
+    usage = data.get("usage") or {}
+    if usage:
+      _token_tracker.prompt_tokens += usage.get("prompt_tokens", 0)
+      _token_tracker.completion_tokens += usage.get("completion_tokens", 0)
+      _token_tracker.calls += 1
+  except Exception:
+    pass
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
@@ -232,4 +232,6 @@ async def evaluate_results():
 
 
 if __name__ == "__main__":
+  from logs.logger import setup_logging
+  setup_logging("ragas_eval")
   asyncio.run(evaluate_results())

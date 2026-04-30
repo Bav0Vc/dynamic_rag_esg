@@ -38,13 +38,11 @@ def _extract_reply_text(reply) -> str:
     return reply.text
   return str(reply)
 
-
 def _build_llm(llm_cfg: dict):
   if llm_cfg["backend"] == "mistral": # Mistral-Large-2
     return MistralChatGenerator(model=llm_cfg["api_model"])
   if llm_cfg["backend"] == "hf": # Qwen-2.5-14B-Instruct, Llama-3.3-70B-Instruct
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
-
 
 def run_query_pipeline(config: dict, golden_dataset: list) -> list:
   chunker_name: str = config["chunking"]["chunker_name"]

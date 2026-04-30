@@ -25,7 +25,6 @@ def load_golden_dataset() -> list:
   with open(path, "r", encoding="utf-8") as f:
     return json.load(f)
 
-
 def run_benchmark() -> None:
   os.makedirs(_RESULTS_DIR, exist_ok=True)
 
@@ -60,4 +59,6 @@ def run_benchmark() -> None:
 
 
 if __name__ == "__main__":
+  from logs.logger import setup_logging
+  setup_logging("benchmark_loop")
   run_benchmark()

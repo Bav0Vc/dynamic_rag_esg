@@ -9,24 +9,6 @@ def chunking_config(hp: HP):
   )
   return { "chunker_name": chunker_name }
 
-
-# def embedding_config(hp: HP):
-#   model = hp.select(
-#     [
-#       "BAAI/bge-m3",
-#       "snowflake/arctic-embed-l-v2.0",
-#       "intfloat/multilingual-e5-large-instruct",
-#     ],
-#     name="model",
-#     default="BAAI/bge-m3",
-#   )
-#   api_model_map = {
-#     "BAAI/bge-m3": "BAAI/bge-m3",
-#     "snowflake/arctic-embed-l-v2.0": "Snowflake/snowflake-arctic-embed-l-v2.0",
-#     "intfloat/multilingual-e5-large-instruct": "intfloat/multilingual-e5-large-instruct",
-#   }
-#   return {"model": model, "backend": "sentence-transformers", "api_model": api_model_map[model], "dims": 1024}
-
 def embedding_config(hp: HP):
   model = hp.select(
     [
@@ -40,27 +22,6 @@ def embedding_config(hp: HP):
 
   return { "model": model, "api_model": model, "backend": "sentence-transformers", "dims": 1024 }
 
-# def llm_config(hp: HP):
-#   name = hp.select(
-#     [
-#       "Qwen-2.5-14B-Instruct",
-#       "Llama-3.3-70B-Instruct",
-#       "Mistral-Large-2",
-#     ],
-#     name="name",
-#     default="Qwen-2.5-14B-Instruct",
-#   )
-#   if name == "Qwen-2.5-14B-Instruct":
-#     backend = "hf"
-#     api_model = "Qwen/Qwen2.5-14B-Instruct"
-#   elif name == "Llama-3.3-70B-Instruct":
-#     backend = "hf"
-#     api_model = "meta-llama/Llama-3.3-70B-Instruct"
-#   else:
-#     backend = "mistral"
-#     api_model = "mistral-large-latest"
-#   return {"name": name, "backend": backend, "api_model": api_model}
-
 def llm_config(hp: HP):
   configs = {
     "Qwen-2.5-14B-Instruct": {"backend": "hf", "api_model": "Qwen/Qwen2.5-14B-Instruct"},
@@ -72,7 +33,6 @@ def llm_config(hp: HP):
     
   # Merge the name key with the selected configuration dictionary
   return { "name": name, **configs[name] }
-
 
 def pipeline_config(hp: HP):
   chunking = hp.nest(chunking_config, name="chunking")
