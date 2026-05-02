@@ -1,8 +1,8 @@
 import os
 import json
-import httpx
 import asyncio
 import traceback
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from openai import AsyncOpenAI
@@ -23,54 +23,9 @@ load_dotenv()
 _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
-_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
-# # From any directory, e.g. C:\Users\vanco\Repos\dynamic_rag_esg
-# Set-Content -Path "Modelfile" -Value "FROM mervinpraison/llama3.1-instruct:8b`nPARAMETER num_predict -1`nPARAMETER num_ctx 131072"
-# ollama create llama3.1-eval:8b -f Modelfile
-_OLLAMA_MODEL = "llama3.1-eval:8b"
-
-
-class _TokenTracker:
-  def __init__(self):
-    self.reset()
-
-  def reset(self):
-    self.prompt_tokens = 0
-    self.completion_tokens = 0
-    self.calls = 0
-
-_token_tracker = _TokenTracker()
-
-
-class _OllamaTransport(httpx.AsyncHTTPTransport):
-  """Forces a minimum max_tokens on every request so instructor's retry-doubling
-  logic (which starts at 1024) never hits the output limit mid-JSON."""
-  _MIN_MAX_TOKENS = 8192
-
-  async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-    try:
-      body = json.loads(request.content)
-      if body.get("max_tokens", 0) < self._MIN_MAX_TOKENS:
-        body["max_tokens"] = self._MIN_MAX_TOKENS
-        new_content = json.dumps(body).encode()
-        headers = {**dict(request.headers), "content-length": str(len(new_content))}
-        request = httpx.Request(request.method, request.url, headers=headers, content=new_content)
-    except Exception:
-      pass
-    return await super().handle_async_request(request)
-
-
-async def _on_response(response: httpx.Response) -> None:
-  await response.aread()
-  try:
-    data = json.loads(response.content)
-    usage = data.get("usage") or {}
-    if usage:
-      _token_tracker.prompt_tokens += usage.get("prompt_tokens", 0)
-      _token_tracker.completion_tokens += usage.get("completion_tokens", 0)
-      _token_tracker.calls += 1
-  except Exception:
-    pass
+_HF_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
+_EVAL_MODEL = "Qwen/Qwen2.5-14B-Instruct"
+_CONCURRENCY = 2  # each sample fires 4 concurrent metrics; 2×4=8 stays under Featherless AI's 10-unit limit
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
@@ -81,56 +36,60 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
   retrieved_contexts = [str(c) for c in (row.get("contexts") or [])]
   reference = str(row.get("ground_truth", "")) if row.get("ground_truth") else ""
 
-  scores = {}
+  async def _faithfulness():
+    try:
+      result = await faithfulness_m.ascore(
+        user_input=user_input, response=response, retrieved_contexts=retrieved_contexts,
+      )
+      return result.value
+    except Exception as e:
+      print(f"Faithfulness failed: {type(e).__name__}: {e}")
+      print(traceback.format_exc())
+      return np.nan
 
-  try:
-    result = await faithfulness_m.ascore(
-      user_input=user_input,
-      response=response,
-      retrieved_contexts=retrieved_contexts,
-    )
-    scores["faithfulness"] = result.value
-  except Exception as e:
-    print(f"Faithfulness failed: {type(e).__name__}: {e}")
-    print(traceback.format_exc())
-    scores["faithfulness"] = np.nan
+  async def _context_recall():
+    try:
+      result = await context_recall_m.ascore(
+        user_input=user_input, retrieved_contexts=retrieved_contexts, reference=reference,
+      )
+      return result.value
+    except Exception as e:
+      print(f"ContextRecall failed: {type(e).__name__}: {e}")
+      print(traceback.format_exc())
+      return np.nan
 
-  try:
-    result = await context_recall_m.ascore(
-      user_input=user_input,
-      retrieved_contexts=retrieved_contexts,
-      reference=reference,
-    )
-    scores["context_recall"] = result.value
-  except Exception as e:
-    print(f"ContextRecall failed: {type(e).__name__}: {e}")
-    print(traceback.format_exc())
-    scores["context_recall"] = np.nan
+  async def _context_precision():
+    try:
+      result = await context_precision_m.ascore(
+        user_input=user_input, reference=reference, retrieved_contexts=retrieved_contexts,
+      )
+      return result.value
+    except Exception as e:
+      print(f"ContextPrecision failed: {type(e).__name__}: {e}")
+      print(traceback.format_exc())
+      return np.nan
 
-  try:
-    result = await context_precision_m.ascore(
-      user_input=user_input,
-      reference=reference,
-      retrieved_contexts=retrieved_contexts,
-    )
-    scores["context_precision"] = result.value
-  except Exception as e:
-    print(f"ContextPrecision failed: {type(e).__name__}: {e}")
-    print(traceback.format_exc())
-    scores["context_precision"] = np.nan
+  async def _answer_relevancy():
+    try:
+      result = await answer_relevancy_m.ascore(
+        user_input=user_input, response=response,
+      )
+      return result.value
+    except Exception as e:
+      print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
+      print(traceback.format_exc())
+      return np.nan
 
-  try:
-    result = await answer_relevancy_m.ascore(
-      user_input=user_input,
-      response=response,
-    )
-    scores["answer_relevancy"] = result.value
-  except Exception as e:
-    print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
-    print(traceback.format_exc())
-    scores["answer_relevancy"] = np.nan
+  faith, recall, precision, relevancy = await asyncio.gather(
+    _faithfulness(), _context_recall(), _context_precision(), _answer_relevancy()
+  )
 
-  return scores
+  return {
+    "faithfulness": faith,
+    "context_recall": recall,
+    "context_precision": precision,
+    "answer_relevancy": relevancy,
+  }
 
 
 # ── Main evaluation loop ──────────────────────────────────────────────────────
@@ -168,12 +127,8 @@ async def evaluate_results():
 
   already_done = {row["Configuration"] for row in existing_leaderboard}
 
-  http_client = httpx.AsyncClient(transport=_OllamaTransport(), event_hooks={"response": [_on_response]})
-  llm_client = AsyncOpenAI(base_url=_OLLAMA_BASE_URL, api_key="ollama", http_client=http_client)
-
-  evaluator_llm = llm_factory(_OLLAMA_MODEL, provider="openai", client=llm_client)
-
-  # Independent from the three evaluated embedders (bge-m3, arctic-embed, multilingual-e5).
+  llm_client = AsyncOpenAI(base_url=_HF_BASE_URL, api_key=os.environ["HF_TOKEN"])
+  evaluator_llm = llm_factory(_EVAL_MODEL, provider="openai", client=llm_client)
   evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
 
   faithfulness_m = Faithfulness(llm=evaluator_llm)
@@ -189,17 +144,17 @@ async def evaluate_results():
     print(f"\nEvaluating: {config}")
     subset = df[df["Configuration"] == config].reset_index(drop=True)
 
-    rows_scores = []
-    for _, row in subset.iterrows():
-      _token_tracker.reset()
-      scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
-      print(
-        f"  [{row['question_id']}]  "
-        f"eval-tokens → prompt: {_token_tracker.prompt_tokens:,}  "
-        f"completion: {_token_tracker.completion_tokens:,}  "
-        f"calls: {_token_tracker.calls}"
-      )
-      rows_scores.append(scores)
+    sem = asyncio.Semaphore(_CONCURRENCY)
+
+    async def _score_row(row):
+      async with sem:
+        t0 = asyncio.get_event_loop().time()
+        scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
+        elapsed = asyncio.get_event_loop().time() - t0
+        print(f"  [{datetime.now().strftime('%H:%M:%S')}] | [{row['question_id']}] evaluated ({elapsed:.1f}s)")
+        return scores
+
+    rows_scores = await asyncio.gather(*[_score_row(row) for _, row in subset.iterrows()])
 
     scores_df = pd.DataFrame(rows_scores)
     for col in _META_COLS:
