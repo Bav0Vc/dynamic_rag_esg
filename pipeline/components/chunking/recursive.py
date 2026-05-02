@@ -1,46 +1,17 @@
 from typing import List
 from haystack import component, Document
+from haystack.components.preprocessors import RecursiveDocumentSplitter
 
 @component
 class RecursiveSplitter:
   def __init__(self, separators: List[str] = ["\n\n", "\n", ".", " ", ""], split_length: int = 150, split_overlap: int = 20):
-    self.separators = separators
-    self.split_length = split_length
-    self.split_overlap = split_overlap
+    self.internal_splitter = RecursiveDocumentSplitter(
+      separators=separators,
+      split_length=split_length,
+      split_overlap=split_overlap,
+      split_unit="word",
+    )
 
   @component.output_types(documents=List[Document])
   def run(self, documents: List[Document]):
-    final_docs = []
-    for doc in documents:
-      chunks = self._recursive_split(doc.content, self.separators)
-      page = doc.meta.get("page", "?")
-      for i, chunk in enumerate(chunks):
-        final_docs.append(Document(content=chunk, meta={**doc.meta, "page": page, "chunk_id": i}))
-    return {"documents": final_docs}
-
-  def _recursive_split(self, text: str, separators: List[str]) -> List[str]:
-    if not separators:
-      return [text]
-
-    sep = separators[0]
-    parts = text.split(sep)
-
-    final_chunks = []
-    current_chunk = ""
-
-    for part in parts:
-      if len(part.split()) > self.split_length and len(separators) > 1:
-        sub_chunks = self._recursive_split(part, separators[1:])
-        final_chunks.extend(sub_chunks)
-      else:
-        if len((current_chunk + sep + part).split()) <= self.split_length:
-          current_chunk = current_chunk + sep + part if current_chunk else part
-        else:
-          if current_chunk:
-            final_chunks.append(current_chunk.strip())
-          current_chunk = part
-
-    if current_chunk:
-      final_chunks.append(current_chunk.strip())
-
-    return [p for p in final_chunks if p.strip()]
+    return self.internal_splitter.run(documents=documents)

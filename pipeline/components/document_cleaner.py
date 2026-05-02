@@ -2,6 +2,17 @@ import re
 from pathlib import Path
 from haystack import component, Document
 
+
+@component
+class ChunkMetaCleaner:
+  """Strips internal Haystack splitter fields (page_number) from chunk metadata after chunking."""
+  @component.output_types(documents=list[Document])
+  def run(self, documents: list[Document]) -> dict:
+    for doc in documents:
+      doc.meta.pop("page_number", None)
+    return {"documents": documents}
+
+
 @component
 class DocumentCleaner:
   """

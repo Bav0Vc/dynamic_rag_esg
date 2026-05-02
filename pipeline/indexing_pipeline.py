@@ -1,3 +1,4 @@
+import gc
 import os
 from pathlib import Path
 from haystack import Pipeline
@@ -6,7 +7,7 @@ from dotenv import load_dotenv
 from haystack.utils import Secret
 from scripts.logger import setup_logging
 # Converter & Cleaner
-from pipeline.components.document_cleaner import DocumentCleaner
+from pipeline.components.document_cleaner import DocumentCleaner, ChunkMetaCleaner
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 # Chunking
 from pipeline.components.chunking.fixed import FixedSizeWordSplitter
@@ -41,7 +42,36 @@ def _make_chunker(chunker_name: str):
 
 
 def _make_doc_embedder(emb_cfg: dict):
-  return SentenceTransformersDocumentEmbedder(model=emb_cfg["api_model"])
+  return SentenceTransformersDocumentEmbedder(model=emb_cfg["api_model"], batch_size=4)
+
+
+def _make_converter(unstructured_url: str) -> UnstructuredFileConverter:
+  return UnstructuredFileConverter(
+    api_url=unstructured_url,
+    document_creation_mode="one-doc-per-page",
+    unstructured_kwargs={
+      "strategy": "hi_res",
+      "languages": ["ita", "eng"],
+      "skip_infer_table_types": [],
+      "pdf_infer_table_structure": False,
+    },
+  )
+
+
+def _free_semantic_chunker_gpu(chunker: SemanticEmbeddingChunker) -> None:
+  """Move the semantic chunker's internal embedding model to CPU and clear CUDA cache."""
+  try:
+    import torch
+    if not torch.cuda.is_available():
+      return
+    backend = getattr(getattr(chunker, 'embedder', None), 'embedding_backend', None)
+    if backend is not None:
+      model = getattr(backend, 'model', None)
+      if model is not None:
+        model.cpu()
+    torch.cuda.empty_cache()
+  except Exception:
+    pass
 
 
 def run_indexing(resume_from: int = 0) -> None:
@@ -100,28 +130,46 @@ def run_indexing(resume_from: int = 0) -> None:
     chunker = _make_chunker(chunker_name)
     embedder = _make_doc_embedder(emb_cfg)
 
-    indexing_pipe = Pipeline()
-    indexing_pipe.add_component("converter", UnstructuredFileConverter(
-      api_url=unstructured_url,
-      document_creation_mode="one-doc-per-element",
-      unstructured_kwargs={
-        "strategy": "hi_res",
-        "languages": ["ita", "eng"],
-        "skip_infer_table_types": [],
-        "pdf_infer_table_structure": False, 
-      },
-    ))
-    indexing_pipe.add_component("cleaner", DocumentCleaner())
-    indexing_pipe.add_component("chunker", chunker)
-    indexing_pipe.add_component("embedder", embedder)
-    indexing_pipe.add_component("writer", DocumentWriter(document_store=document_store))
+    if chunker_name == "SemanticEmbeddingChunker":
+      # Phase 1: chunk documents — the semantic chunker loads its embedding model onto GPU
+      chunk_pipe = Pipeline()
+      chunk_pipe.add_component("converter", _make_converter(unstructured_url))
+      chunk_pipe.add_component("cleaner", DocumentCleaner())
+      chunk_pipe.add_component("chunker", chunker)
+      chunk_pipe.add_component("meta_cleaner", ChunkMetaCleaner())
+      chunk_pipe.connect("converter.documents", "cleaner.documents")
+      chunk_pipe.connect("cleaner.documents", "chunker.documents")
+      chunk_pipe.connect("chunker.documents", "meta_cleaner.documents")
+      chunk_result = chunk_pipe.run({"converter": {"paths": all_file_paths}})
+      chunks = chunk_result["meta_cleaner"]["documents"]
 
-    indexing_pipe.connect("converter.documents", "cleaner.documents")
-    indexing_pipe.connect("cleaner.documents", "chunker.documents")
-    indexing_pipe.connect("chunker.documents", "embedder.documents")
-    indexing_pipe.connect("embedder.documents", "writer.documents")
+      # Free the chunker's GPU memory before loading the indexing embedding model,
+      # so both models are never in VRAM simultaneously (prevents OOM on 8 GiB GPUs).
+      _free_semantic_chunker_gpu(chunker)
+      del chunk_pipe
+      gc.collect()
 
-    indexing_pipe.run({"converter": {"paths": all_file_paths}})
+      # Phase 2: embed and write with GPU now free of the chunker model
+      embed_pipe = Pipeline()
+      embed_pipe.add_component("embedder", embedder)
+      embed_pipe.add_component("writer", DocumentWriter(document_store=document_store))
+      embed_pipe.connect("embedder.documents", "writer.documents")
+      embed_pipe.run({"embedder": {"documents": chunks}})
+    else:
+      indexing_pipe = Pipeline()
+      indexing_pipe.add_component("converter", _make_converter(unstructured_url))
+      indexing_pipe.add_component("cleaner", DocumentCleaner())
+      indexing_pipe.add_component("chunker", chunker)
+      indexing_pipe.add_component("meta_cleaner", ChunkMetaCleaner())
+      indexing_pipe.add_component("embedder", embedder)
+      indexing_pipe.add_component("writer", DocumentWriter(document_store=document_store))
+      indexing_pipe.connect("converter.documents", "cleaner.documents")
+      indexing_pipe.connect("cleaner.documents", "chunker.documents")
+      indexing_pipe.connect("chunker.documents", "meta_cleaner.documents")
+      indexing_pipe.connect("meta_cleaner.documents", "embedder.documents")
+      indexing_pipe.connect("embedder.documents", "writer.documents")
+      indexing_pipe.run({"converter": {"paths": all_file_paths}})
+
     print(f"Finished indexing for {config_name}")
 
   print("Finished indexing pipeline!")

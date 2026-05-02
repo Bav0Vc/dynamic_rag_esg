@@ -9,7 +9,7 @@ class SemanticEmbeddingChunker:
   def __init__(
     self,
     model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-    sentences_per_group: int = 1, # of 2
+    sentences_per_group: int = 3,
     percentile: float = 0.95,
     min_length: int = 50,
     max_length: int = 1000,
@@ -30,6 +30,7 @@ class SemanticEmbeddingChunker:
       max_length=max_length
     )
 
+  # For GPU
   def warm_up(self):
     self.embedder.warm_up()
 
