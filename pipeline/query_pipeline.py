@@ -18,7 +18,7 @@ _PROMPT_TEMPLATE = """Answer the question based on the context. \
 Also include the filename and page number of the document containing the retrieved chunk, on a new line after the answer to the question.
 Context:
 {% for doc in documents %}
-  File: {{ doc.meta['source'] }}, Page: {{ doc.meta.get('page', doc.meta.get('page_name', '?')) }}
+  File: {{ doc.meta['source'] }}, Page: {{ doc.meta.get('page', '?') }}
   Contents: {{ doc.content }}
 {% endfor %}
 Question: {{question}}"""
@@ -44,7 +44,7 @@ def _build_llm(llm_cfg: dict):
   if llm_cfg["backend"] == "hf": # Qwen-2.5-14B-Instruct, Llama-3.3-70B-Instruct
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
 
-def run_query_pipeline(config: dict, golden_dataset: list) -> list:
+def run_query_pipeline(config: dict, golden_set: list) -> list:
   chunker_name: str = config["chunking"]["chunker_name"]
   emb_cfg: dict = config["embedding"]
   llm_cfg: dict = config["llm"]
@@ -90,7 +90,7 @@ def run_query_pipeline(config: dict, golden_dataset: list) -> list:
   _RETRY_BASE_DELAY = 15  # seconds (doubles each attempt)
 
   results = []
-  for item in golden_dataset:
+  for item in golden_set:
     q = item["answer"]["user_question"]
     for attempt in range(_MAX_RETRIES):
       try:
