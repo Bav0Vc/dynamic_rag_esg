@@ -15,6 +15,7 @@ from pipeline.components.chunking.recursive import RecursiveSplitter
 from pipeline.components.chunking.semantic import SemanticEmbeddingChunker
 # Embedding
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+from pipeline.components.bge_m3_embedders import BGEM3HybridDocumentEmbedder
 # Document Store & Writer
 from hypster import instantiate
 from qdrant_client import QdrantClient
@@ -29,6 +30,8 @@ _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
 _EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
+_BGE_M3 = "BAAI/bge-m3"
+
 
 def _make_chunker(chunker_name: str):
   if chunker_name == "RecursiveSplitter":
@@ -41,10 +44,14 @@ def _make_chunker(chunker_name: str):
 
 
 def _make_doc_embedder(emb_cfg: dict):
+  if emb_cfg["api_model"] == _BGE_M3:
+    return BGEM3HybridDocumentEmbedder()
+  truncate_dim = emb_cfg.get("truncate_dim")
   return SentenceTransformersDocumentEmbedder(
     model=emb_cfg["api_model"],
     prefix=emb_cfg.get("doc_prefix", ""),
     batch_size=4,
+    model_kwargs={"truncate_dim": truncate_dim} if truncate_dim else {},
   )
 
 
@@ -121,12 +128,14 @@ def run_indexing(resume_from: int = 0) -> None:
     print(f"Indexing config ({idx + 1}/{len(combinations)}): {config_name}")
 
     collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
+    use_sparse = embedder_model == _BGE_M3
 
     document_store = QdrantDocumentStore(
       url=os.getenv("QDRANT_URL"),
       api_key=Secret.from_env_var("QDRANT_API_KEY"),
       index=collection_name,
       embedding_dim=emb_cfg["dims"],
+      use_sparse_embeddings=use_sparse,
       recreate_index=True,
     )
 

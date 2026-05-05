@@ -8,7 +8,8 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
-from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
+from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever, QdrantHybridRetriever
+from pipeline.components.bge_m3_embedders import BGEM3HybridTextEmbedder
 
 
 load_dotenv()
@@ -24,6 +25,7 @@ Context:
 Question: {{question}}"""
 
 _HF_LLM_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
+_BGE_M3 = "BAAI/bge-m3"
 
 
 def _extract_reply_text(reply) -> str:
@@ -39,9 +41,9 @@ def _extract_reply_text(reply) -> str:
   return str(reply)
 
 def _build_llm(llm_cfg: dict):
-  if llm_cfg["backend"] == "mistral": # Mistral-Large-2
+  if llm_cfg["backend"] == "mistral":
     return MistralChatGenerator(model=llm_cfg["api_model"])
-  if llm_cfg["backend"] == "hf": # Qwen-2.5-14B-Instruct, Llama-3.3-70B-Instruct
+  if llm_cfg["backend"] == "hf":
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
 
 def run_query_pipeline(config: dict, golden_set: list) -> list:
@@ -55,12 +57,14 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   print(f"Running config: {config_label}")
 
   collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
+  use_hybrid = embedder_model == _BGE_M3
 
   document_store = QdrantDocumentStore(
     url=os.getenv("QDRANT_URL"),
     api_key=Secret.from_env_var("QDRANT_API_KEY"),
     index=collection_name,
     embedding_dim=emb_cfg["dims"],
+    use_sparse_embeddings=use_hybrid,
     recreate_index=False,
   )
 
@@ -73,18 +77,27 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
     print(f"  -> Could not connect to collection '{collection_name}'. Skipping. {exc}")
     return []
 
-  text_embedder = SentenceTransformersTextEmbedder(
-    model=emb_cfg["api_model"],
-    prefix=emb_cfg.get("query_prefix", ""),
-  )
   llm_instance = _build_llm(llm_cfg)
-
   query_pipe = Pipeline()
-  query_pipe.add_component("text_embedder", text_embedder)
-  query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
+
+  if use_hybrid:
+    # Single component produces both dense and sparse — one encode() call for BGE-M3.
+    query_pipe.add_component("text_embedder", BGEM3HybridTextEmbedder())
+    query_pipe.add_component("retriever", QdrantHybridRetriever(document_store=document_store))
+    query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
+    query_pipe.connect("text_embedder.sparse_embedding", "retriever.query_sparse_embedding")
+  else:
+    truncate_dim = emb_cfg.get("truncate_dim")
+    query_pipe.add_component("text_embedder", SentenceTransformersTextEmbedder(
+      model=emb_cfg["api_model"],
+      prefix=emb_cfg.get("query_prefix", ""),
+      model_kwargs={"truncate_dim": truncate_dim} if truncate_dim else {},
+    ))
+    query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
+    query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
+
   query_pipe.add_component("prompt_builder", PromptBuilder(template=_PROMPT_TEMPLATE, required_variables=["documents", "question"]))
   query_pipe.add_component("llm", llm_instance)
-  query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
   query_pipe.connect("retriever.documents", "prompt_builder.documents")
   query_pipe.connect("prompt_builder", "llm")
 

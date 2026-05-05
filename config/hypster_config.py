@@ -29,11 +29,22 @@ def embedding_config(hp: HP):
   }
   query_prefix, doc_prefix = _prefixes.get(model, ("", ""))
 
+  _dims = {
+    "BAAI/bge-m3": 1024,
+    "Snowflake/snowflake-arctic-embed-l-v2.0": 256,  # MRL truncation
+    "intfloat/multilingual-e5-large-instruct": 1024,
+  }
+  # Only set for models that use MRL truncation below their native dimension
+  _truncate_dim = {
+    "Snowflake/snowflake-arctic-embed-l-v2.0": 256,
+  }
+
   return {
     "model": model,
     "api_model": model,
     "backend": "sentence-transformers",
-    "dims": 1024,
+    "dims": _dims[model],
+    "truncate_dim": _truncate_dim.get(model),
     "query_prefix": query_prefix,
     "doc_prefix": doc_prefix,
   }
