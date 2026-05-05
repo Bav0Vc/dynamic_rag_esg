@@ -21,12 +21,12 @@ from ragas.metrics.collections import (
 load_dotenv()
 
 _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
-_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
+_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "citation_accuracy", "prompt_tokens", "completion_tokens"]
 
-_EVAL_BASE_URL = os.environ.get("SCHOOL_BASE_URL", "https://router.huggingface.co/scaleway/v1")
+_EVAL_BASE_URL = os.environ.get("RAGAS_BASE_URL", "https://router.huggingface.co/featherless-ai/v1")
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
-_EVAL_MODEL = os.environ.get("SCHOOL_EVAL_MODEL", "google/gemma-3-27b-it")
-_CONCURRENCY = 2  # each sample fires 4 concurrent metrics; 2×4=8 in-flight at once
+_EVAL_MODEL = os.environ.get("RAGAS_MODEL", "Qwen/Qwen2.5-14B-Instruct")
+
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────
@@ -113,6 +113,13 @@ async def evaluate_results():
     lambda row: 1.0 if str(row.get("expected_source", "")) in str(row.get("answer", "")) else 0.0,
     axis=1,
   )
+  df["citation_accuracy"] = df.apply(
+    lambda row: 1.0 if (
+      str(row.get("expected_source", "")) in str(row.get("answer", "")) and
+      str(row.get("source_page", "")) in str(row.get("answer", ""))
+    ) else 0.0,
+    axis=1,
+  )
 
   # Load existing results so we can resume a previously interrupted run.
   os.makedirs("evaluation/results", exist_ok=True)
@@ -145,17 +152,13 @@ async def evaluate_results():
     print(f"\nEvaluating: {config}")
     subset = df[df["Configuration"] == config].reset_index(drop=True)
 
-    sem = asyncio.Semaphore(_CONCURRENCY)
-
-    async def _score_row(row):
-      async with sem:
-        t0 = asyncio.get_event_loop().time()
-        scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
-        elapsed = asyncio.get_event_loop().time() - t0
-        print(f"  [{datetime.now().strftime('%H:%M:%S')}] | [{row['question_id']}] evaluated ({elapsed:.1f}s)")
-        return scores
-
-    rows_scores = await asyncio.gather(*[_score_row(row) for _, row in subset.iterrows()])
+    rows_scores = []
+    for _, row in subset.iterrows():
+      t0 = asyncio.get_event_loop().time()
+      scores = await score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row)
+      elapsed = asyncio.get_event_loop().time() - t0
+      print(f"  [{datetime.now().strftime('%H:%M:%S')}] | [{row['question_id']}] evaluated ({elapsed:.1f}s)")
+      rows_scores.append(scores)
 
     scores_df = pd.DataFrame(rows_scores)
     for col in _META_COLS:
@@ -185,6 +188,7 @@ async def evaluate_results():
       "LLM": subset.iloc[0]["LLM"],
       "Latency (s)": round(subset["latency"].mean(), 3),
       "Source Attribution": round(subset["source_attribution"].mean(), 2),
+      "Citation Accuracy": round(subset["citation_accuracy"].mean(), 2),
       "Faithfulness": _mean("faithfulness"),
       "Context Recall": _mean("context_recall"),
       "Context Precision": _mean("context_precision"),
