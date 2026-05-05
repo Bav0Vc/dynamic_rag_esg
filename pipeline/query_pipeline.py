@@ -16,7 +16,7 @@ load_dotenv()
 
 
 _PROMPT_TEMPLATE = """Answer the question based on the context. \
-Also include the filename and page number of the document containing the retrieved chunk, on a new line after the answer to the question.
+Also include the filename and page number or page name of the document containing the retrieved chunk, on a new line after the answer to the question.
 Context:
 {% for doc in documents %}
   File: {{ doc.meta['source'] }}, Page: {{ doc.meta.get('page', '?') }}
@@ -24,7 +24,6 @@ Context:
 {% endfor %}
 Question: {{question}}"""
 
-_HF_LLM_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
 _BGE_M3 = "BAAI/bge-m3"
 
 
@@ -44,7 +43,7 @@ def _build_llm(llm_cfg: dict):
   if llm_cfg["backend"] == "mistral":
     return MistralChatGenerator(model=llm_cfg["api_model"])
   if llm_cfg["backend"] == "hf":
-    return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=_HF_LLM_BASE_URL)
+    return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=llm_cfg["api_base_url"])
 
 def run_query_pipeline(config: dict, golden_set: list) -> list:
   chunker_name: str = config["chunking"]["chunker_name"]
@@ -91,7 +90,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
     query_pipe.add_component("text_embedder", SentenceTransformersTextEmbedder(
       model=emb_cfg["api_model"],
       prefix=emb_cfg.get("query_prefix", ""),
-      model_kwargs={"truncate_dim": truncate_dim} if truncate_dim else {},
+      truncate_dim=truncate_dim,
     ))
     query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
     query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
@@ -105,7 +104,8 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   _RETRY_BASE_DELAY = 15  # seconds (doubles each attempt)
 
   results = []
-  for item in golden_set:
+  n_questions = len(golden_set)
+  for q_idx, item in enumerate(golden_set, start=1):
     q = item["answer"]["user_question"]
     for attempt in range(_MAX_RETRIES):
       try:
@@ -146,6 +146,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
           "prompt_tokens": usage.get("prompt_tokens", 0),
           "completion_tokens": usage.get("completion_tokens", 0),
         })
+        print(f"  [{q_idx}/{n_questions}] Q{item['question_id']} done ({latency:.1f}s)")
         break  # success = move to next question
       except Exception as exc:
         if attempt < _MAX_RETRIES - 1:
@@ -163,4 +164,5 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
             f"Last error: {exc}"
           ) from exc
 
+  print(f"  -> Finished {len(results)}/{n_questions} questions for {config_label}")
   return results

@@ -1,3 +1,4 @@
+import dataclasses
 from typing import List
 from haystack import component, Document
 from haystack.dataclasses import SparseEmbedding
@@ -17,6 +18,8 @@ class BGEM3HybridDocumentEmbedder:
     self._model = None
 
   def warm_up(self):
+    if self._model is not None:
+      return
     try:
       from FlagEmbedding import BGEM3FlagModel
     except ImportError as exc:
@@ -38,6 +41,7 @@ class BGEM3HybridDocumentEmbedder:
 
     texts = [doc.content or "" for doc in documents]
 
+    result_docs = []
     for batch_start in range(0, len(texts), self.batch_size):
       batch_texts = texts[batch_start:batch_start + self.batch_size]
       batch_docs = documents[batch_start:batch_start + self.batch_size]
@@ -50,13 +54,16 @@ class BGEM3HybridDocumentEmbedder:
       )
 
       for doc, dense_vec, lex_weights in zip(batch_docs, output["dense_vecs"], output["lexical_weights"]):
-        doc.embedding = dense_vec.tolist()
-        doc.sparse_embedding = SparseEmbedding(
-          indices=[int(k) for k in lex_weights.keys()],
-          values=[float(v) for v in lex_weights.values()],
-        )
+        result_docs.append(dataclasses.replace(
+          doc,
+          embedding=dense_vec.tolist(),
+          sparse_embedding=SparseEmbedding(
+            indices=[int(k) for k in lex_weights.keys()],
+            values=[float(v) for v in lex_weights.values()],
+          ),
+        ))
 
-    return {"documents": documents}
+    return {"documents": result_docs}
 
 
 @component
@@ -72,6 +79,8 @@ class BGEM3HybridTextEmbedder:
     self._model = None
 
   def warm_up(self):
+    if self._model is not None:
+      return
     try:
       from FlagEmbedding import BGEM3FlagModel
     except ImportError as exc:

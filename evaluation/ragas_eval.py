@@ -23,10 +23,10 @@ load_dotenv()
 _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
-_EVAL_BASE_URL = os.environ.get("SCHOOL_BASE_URL", "https://router.huggingface.co/featherless-ai/v1")
+_EVAL_BASE_URL = os.environ.get("SCHOOL_BASE_URL", "https://router.huggingface.co/scaleway/v1")
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
-_EVAL_MODEL = os.environ.get("SCHOOL_EVAL_MODEL", "Qwen/Qwen2.5-14B-Instruct")
-_CONCURRENCY = 2  # each sample fires 4 concurrent metrics; 2×4=8 stays under Featherless AI's 10-unit limit
+_EVAL_MODEL = os.environ.get("SCHOOL_EVAL_MODEL", "google/gemma-3-27b-it")
+_CONCURRENCY = 2  # each sample fires 4 concurrent metrics; 2×4=8 in-flight at once
 
 
 # ── Per-sample scorer ─────────────────────────────────────────────────────────

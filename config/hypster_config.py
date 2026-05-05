@@ -51,21 +51,23 @@ def embedding_config(hp: HP):
 
 def llm_config(hp: HP):
   configs = {
-    "Qwen-2.5-14B-Instruct": {
+    "Gemma-3-27b-it": {
       "backend": "hf",
-      "api_model": "Qwen/Qwen2.5-14B-Instruct"
+      "api_model": "google/gemma-3-27b-it:scaleway",
+      "api_base_url": "https://router.huggingface.co/v1",
     },
     "Llama-3.3-70B-Instruct": {
       "backend": "hf",
-      "api_model": "meta-llama/Llama-3.3-70B-Instruct"
+      "api_model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
+      "api_base_url": "https://router.huggingface.co/v1",
     },
-    "Mistral-Large-2": {
+    "Mistral-Small-2603": {
       "backend": "mistral",
-      "api_model": "mistral-large-latest"
+      "api_model": "mistral-small-2603",
     },
   }
 
-  name = hp.select(list(configs.keys()), name="name", default="Qwen-2.5-14B-Instruct")
+  name = hp.select(list(configs.keys()), name="name", default="Gemma-3-27b-it")
     
   # Merge the name key with the selected configuration dictionary
   return { "name": name, **configs[name] }

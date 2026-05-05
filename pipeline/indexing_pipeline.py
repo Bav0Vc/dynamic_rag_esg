@@ -51,7 +51,7 @@ def _make_doc_embedder(emb_cfg: dict):
     model=emb_cfg["api_model"],
     prefix=emb_cfg.get("doc_prefix", ""),
     batch_size=4,
-    model_kwargs={"truncate_dim": truncate_dim} if truncate_dim else {},
+    truncate_dim=truncate_dim,
   )
 
 
