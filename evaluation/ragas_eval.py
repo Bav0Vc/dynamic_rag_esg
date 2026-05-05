@@ -23,8 +23,9 @@ load_dotenv()
 _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
-_HF_BASE_URL = "https://router.huggingface.co/featherless-ai/v1"
-_EVAL_MODEL = "Qwen/Qwen2.5-14B-Instruct"
+_EVAL_BASE_URL = os.environ.get("SCHOOL_BASE_URL", "https://router.huggingface.co/featherless-ai/v1")
+_EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
+_EVAL_MODEL = os.environ.get("SCHOOL_EVAL_MODEL", "Qwen/Qwen2.5-14B-Instruct")
 _CONCURRENCY = 2  # each sample fires 4 concurrent metrics; 2×4=8 stays under Featherless AI's 10-unit limit
 
 
@@ -127,9 +128,9 @@ async def evaluate_results():
 
   already_done = {row["Configuration"] for row in existing_leaderboard}
 
-  llm_client = AsyncOpenAI(base_url=_HF_BASE_URL, api_key=os.environ["HF_TOKEN"])
+  llm_client = AsyncOpenAI(base_url=_EVAL_BASE_URL, api_key=os.environ[_EVAL_API_KEY_ENV])
   evaluator_llm = llm_factory(_EVAL_MODEL, provider="openai", client=llm_client)
-  evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
+  evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
   faithfulness_m = Faithfulness(llm=evaluator_llm)
   context_recall_m = ContextRecall(llm=evaluator_llm)

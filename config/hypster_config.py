@@ -24,7 +24,19 @@ def embedding_config(hp: HP):
     default="BAAI/bge-m3",
   )
 
-  return { "model": model, "api_model": model, "backend": "sentence-transformers", "dims": 1024 }
+  _prefixes = {
+    "intfloat/multilingual-e5-large-instruct": ("query: ", "passage: "),
+  }
+  query_prefix, doc_prefix = _prefixes.get(model, ("", ""))
+
+  return {
+    "model": model,
+    "api_model": model,
+    "backend": "sentence-transformers",
+    "dims": 1024,
+    "query_prefix": query_prefix,
+    "doc_prefix": doc_prefix,
+  }
 
 def llm_config(hp: HP):
   configs = {

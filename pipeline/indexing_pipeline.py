@@ -30,7 +30,6 @@ _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 _CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
 _EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 
-
 def _make_chunker(chunker_name: str):
   if chunker_name == "RecursiveSplitter":
     return RecursiveSplitter()
@@ -42,7 +41,11 @@ def _make_chunker(chunker_name: str):
 
 
 def _make_doc_embedder(emb_cfg: dict):
-  return SentenceTransformersDocumentEmbedder(model=emb_cfg["api_model"], batch_size=4)
+  return SentenceTransformersDocumentEmbedder(
+    model=emb_cfg["api_model"],
+    prefix=emb_cfg.get("doc_prefix", ""),
+    batch_size=4,
+  )
 
 
 def _make_converter(unstructured_url: str) -> UnstructuredFileConverter:

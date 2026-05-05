@@ -73,7 +73,10 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
     print(f"  -> Could not connect to collection '{collection_name}'. Skipping. {exc}")
     return []
 
-  text_embedder = SentenceTransformersTextEmbedder(model=emb_cfg["api_model"])
+  text_embedder = SentenceTransformersTextEmbedder(
+    model=emb_cfg["api_model"],
+    prefix=emb_cfg.get("query_prefix", ""),
+  )
   llm_instance = _build_llm(llm_cfg)
 
   query_pipe = Pipeline()
@@ -81,7 +84,6 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
   query_pipe.add_component("prompt_builder", PromptBuilder(template=_PROMPT_TEMPLATE, required_variables=["documents", "question"]))
   query_pipe.add_component("llm", llm_instance)
-
   query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
   query_pipe.connect("retriever.documents", "prompt_builder.documents")
   query_pipe.connect("prompt_builder", "llm")
