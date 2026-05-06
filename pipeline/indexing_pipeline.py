@@ -119,7 +119,7 @@ def run_indexing(resume_from: int = 0) -> None:
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
-      "llm.name": "Qwen-2.5-14B-Instruct",  # LLM unused during indexing (valid default still required)
+      "llm.name": "Gemma-3-27b-it",  # LLM unused during indexing (valid default still required)
     }
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
     emb_cfg = config["embedding"]
