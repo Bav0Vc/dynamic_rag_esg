@@ -42,12 +42,6 @@ def _build_llm(llm_cfg: dict):
     return MistralChatGenerator(model=llm_cfg["api_model"])
   if llm_cfg["backend"] == "hf":
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=llm_cfg["api_base_url"])
-  
-def _use_hybrid(model_name: str) -> bool:
-  hybrid_mode = False
-  if model_name == "BAAI/bge-m3":
-    hybrid_mode = True
-  return hybrid_mode
 
 
 def run_query_pipeline(config: dict, golden_set: list) -> list:
@@ -61,9 +55,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   print(f"Running config: {config_label}")
 
   collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
-
-  # Use hybrid retrieval for bge-m3
-  use_hybrid = _use_hybrid(embedder_model)
+  use_hybrid = embedder_model == "BAAI/bge-m3"
 
   document_store = QdrantDocumentStore(
     url=os.getenv("QDRANT_URL"),
