@@ -11,7 +11,7 @@ from pipeline.query_pipeline import run_query_pipeline
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Configuration space axes
-CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
+CHUNKERS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter", "SemanticEmbeddingChunker"]
 EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 LLMS = ["Gemma-3-27b-it", "Llama-3.3-70B-Instruct", "Mistral-Small-2603"]
 

@@ -3,10 +3,10 @@ from haystack import component, Document
 from haystack.components.preprocessors import DocumentSplitter
 
 @component
-class FixedSizeWordSplitter:
-  def __init__(self, split_length: int = 150, split_overlap: int = 20):
+class FixedSizeTokenSplitter:
+  def __init__(self, split_length: int = 400, split_overlap: int = 50):
     self.internal_splitter = DocumentSplitter(
-      split_by="word", 
+      split_by="token", 
       split_length=split_length, 
       split_overlap=split_overlap
     )

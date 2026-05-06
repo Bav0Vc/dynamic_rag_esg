@@ -3,13 +3,13 @@ from haystack import component, Document
 from haystack.components.preprocessors import RecursiveDocumentSplitter
 
 @component
-class RecursiveSplitter:
-  def __init__(self, separators: List[str] = ["\n\n", "\n", ".", " ", ""], split_length: int = 150, split_overlap: int = 20):
+class RecursiveCharacterSplitter:
+  def __init__(self, separators: List[str] = ["\n\n", "\n", ". ", " ", ""], split_length: int = 400, split_overlap: int = 50):
     self.internal_splitter = RecursiveDocumentSplitter(
       separators=separators,
       split_length=split_length,
       split_overlap=split_overlap,
-      split_unit="word",
+      split_unit="token",
     )
 
   @component.output_types(documents=List[Document])

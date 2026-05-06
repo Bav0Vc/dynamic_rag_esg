@@ -23,20 +23,31 @@ class DocumentCleaner:
       source  — filename           (used in citation tags)
       page    — page number (PDF/DOCX) or sheet name (XLSX)
   """
+  # Pages shorter than the split_overlap (65 tokens ≈ ~300 chars) produce
+  # duplicate overlap chunks and trigger Haystack overlap warnings.
+  MIN_CHARS = 250
+
   @component.output_types(documents=list[Document])
   def run(self, documents: list[Document]) -> dict:
     cleaned = []
     for doc in documents:
-      text = self._clean_text(doc.content or "")
-      if not text:
+      source = (doc.meta or {}).get("filename") or Path((doc.meta or {}).get("file_path", "")).name
+      text = self._clean_text(doc.content or "", source)
+      if not text or len(text) < self.MIN_CHARS:
         continue
       meta = self._build_meta(doc.meta)
       cleaned.append(Document(content=text, meta=meta))
     return {"documents": cleaned}
 
-  def _clean_text(self, text: str) -> str:
+  def _clean_text(self, text: str, source: str = "") -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
-    text = re.sub(r"[ \t]+", " ", text)
+    # Preserve tabs for Excel files: Unstructured uses tabs as cell separators,
+    # collapsing them would destroy the table structure that is intrinsically
+    # present in spreadsheets (unlike PDFs where pdf_infer_table_structure governs this).
+    if source.lower().endswith((".xlsx", ".xls")):
+      text = re.sub(r" {2,}", " ", text)
+    else:
+      text = re.sub(r"[ \t]+", " ", text)
     return text.strip()
 
   def _build_meta(self, original_meta: dict) -> dict:

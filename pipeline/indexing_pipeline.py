@@ -10,8 +10,8 @@ from scripts.logger import setup_logging
 from pipeline.components.document_cleaner import DocumentCleaner, ChunkMetaCleaner
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 # Chunking
-from pipeline.components.chunking.fixed import FixedSizeWordSplitter
-from pipeline.components.chunking.recursive import RecursiveSplitter
+from pipeline.components.chunking.fixed import FixedSizeTokenSplitter
+from pipeline.components.chunking.recursive import RecursiveCharacterSplitter
 from pipeline.components.chunking.semantic import SemanticEmbeddingChunker
 # Embedding
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
@@ -28,16 +28,16 @@ load_dotenv()
 
 _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 
-_CHUNKERS = ["RecursiveSplitter", "FixedSizeWordSplitter", "SemanticEmbeddingChunker"]
+_CHUNKERS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter", "SemanticEmbeddingChunker"]
 _EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 _BGE_M3 = "BAAI/bge-m3"
 
 
 def _make_chunker(chunker_name: str):
-  if chunker_name == "RecursiveSplitter":
-    return RecursiveSplitter()
-  if chunker_name == "FixedSizeWordSplitter":
-    return FixedSizeWordSplitter()
+  if chunker_name == "RecursiveCharacterSplitter":
+    return RecursiveCharacterSplitter()
+  if chunker_name == "FixedSizeTokenSplitter":
+    return FixedSizeTokenSplitter()
   if chunker_name == "SemanticEmbeddingChunker":
     return SemanticEmbeddingChunker()
   raise ValueError(f"Unknown chunker: {chunker_name}")
@@ -62,7 +62,12 @@ def _make_converter(unstructured_url: str) -> UnstructuredFileConverter:
     unstructured_kwargs={
       "strategy": "hi_res",
       "languages": ["ita", "eng"],
+      # Infer table structure for all types (empty list = no types skipped).
+      # For Excel, Unstructured extracts cell values natively via openpyxl —
+      # table structure is intrinsically present and does not rely on inference.
       "skip_infer_table_types": [],
+      # Disables expensive vision-model table detection for PDFs.
+      # Excel table structure is preserved separately via DocumentCleaner._clean_text.
       "pdf_infer_table_structure": False,
     },
   )

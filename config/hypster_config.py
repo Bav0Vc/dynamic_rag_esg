@@ -4,12 +4,12 @@ from hypster import HP
 def chunking_config(hp: HP):
   chunker_name = hp.select(
     [
-      "RecursiveSplitter",
-      "FixedSizeWordSplitter",
+      "RecursiveCharacterSplitter",
+      "FixedSizeTokenSplitter",
       "SemanticEmbeddingChunker"
     ],
     name="chunker_name",
-    default="RecursiveSplitter",
+    default="RecursiveCharacterSplitter",
   )
   return { "chunker_name": chunker_name }
 
