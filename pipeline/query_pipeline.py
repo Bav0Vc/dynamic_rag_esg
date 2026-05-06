@@ -16,15 +16,13 @@ load_dotenv()
 
 
 _PROMPT_TEMPLATE = """Answer the question based on the context. \
-Also include the filename and page number or page name of the document containing the retrieved chunk, on a new line after the answer to the question.
+Also include the filename and page number or page name of the document containing the retrieved chunk, on a new line after the answer to the question. Output only in valid JSON.
 Context:
 {% for doc in documents %}
   File: {{ doc.meta['source'] }}, Page: {{ doc.meta.get('page', '?') }}
   Contents: {{ doc.content }}
 {% endfor %}
 Question: {{question}}"""
-
-_BGE_M3 = "BAAI/bge-m3"
 
 
 def _extract_reply_text(reply) -> str:
@@ -44,6 +42,13 @@ def _build_llm(llm_cfg: dict):
     return MistralChatGenerator(model=llm_cfg["api_model"])
   if llm_cfg["backend"] == "hf":
     return OpenAIGenerator(model=llm_cfg["api_model"], api_key=Secret.from_env_var("HF_TOKEN"), api_base_url=llm_cfg["api_base_url"])
+  
+def _use_hybrid(model_name: str) -> bool:
+  hybrid_mode = False
+  if model_name == "BAAI/bge-m3":
+    hybrid_mode = True
+  return hybrid_mode
+
 
 def run_query_pipeline(config: dict, golden_set: list) -> list:
   chunker_name: str = config["chunking"]["chunker_name"]
@@ -56,7 +61,9 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   print(f"Running config: {config_label}")
 
   collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
-  use_hybrid = embedder_model == _BGE_M3
+
+  # Use hybrid retrieval for bge-m3
+  use_hybrid = _use_hybrid(embedder_model)
 
   document_store = QdrantDocumentStore(
     url=os.getenv("QDRANT_URL"),
@@ -80,18 +87,14 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   query_pipe = Pipeline()
 
   if use_hybrid:
-    # Single component produces both dense and sparse — one encode() call for BGE-M3.
+    # Single component produces both dense and sparse — 1 encode() call for BGE-M3.
     query_pipe.add_component("text_embedder", BGEM3HybridTextEmbedder())
     query_pipe.add_component("retriever", QdrantHybridRetriever(document_store=document_store))
     query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
     query_pipe.connect("text_embedder.sparse_embedding", "retriever.query_sparse_embedding")
   else:
-    truncate_dim = emb_cfg.get("truncate_dim")
-    query_pipe.add_component("text_embedder", SentenceTransformersTextEmbedder(
-      model=emb_cfg["api_model"],
-      prefix=emb_cfg.get("query_prefix", ""),
-      truncate_dim=truncate_dim,
-    ))
+    truncate_dim = emb_cfg.get("truncate_dim") # Only for Snowflake/snowflake-arctic-embed-l-v2.0 (hypster_config)
+    query_pipe.add_component("text_embedder", SentenceTransformersTextEmbedder(model=emb_cfg["api_model"], prefix=emb_cfg.get("query_prefix", ""), truncate_dim=truncate_dim))
     query_pipe.add_component("retriever", QdrantEmbeddingRetriever(document_store=document_store))
     query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
 

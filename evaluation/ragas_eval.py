@@ -2,35 +2,36 @@ import os
 import json
 import asyncio
 import traceback
-from datetime import datetime
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from ragas.llms import llm_factory
 from scripts.logger import setup_logging
 from ragas.embeddings import HuggingFaceEmbeddings
-from ragas.metrics.collections import (
-  Faithfulness,
-  ContextRecall,
-  ContextPrecision,
-  AnswerRelevancy,
-)
+from ragas.metrics.collections import (Faithfulness, ContextRecall, ContextPrecision, AnswerRelevancy)
 
 
 load_dotenv()
 
+# region Constants
 _RAGAS_METRICS = ["faithfulness", "context_recall", "context_precision", "answer_relevancy"]
+_LEADERBOARD_METRIC_COLS = {
+  "faithfulness": "Faithfulness",
+  "context_recall": "Context Recall",
+  "context_precision": "Context Precision",
+  "answer_relevancy": "Answer Relevancy",
+}
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "citation_accuracy", "prompt_tokens", "completion_tokens"]
 
 _EVAL_BASE_URL = os.environ.get("RAGAS_BASE_URL", "https://router.huggingface.co/featherless-ai/v1")
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
 _EVAL_MODEL = os.environ.get("RAGAS_MODEL", "Qwen/Qwen2.5-14B-Instruct")
+# endregion
 
 
-
-# ── Per-sample scorer ─────────────────────────────────────────────────────────
-
+# region Per-sample RAGAS-metrics
 async def score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row):
   user_input = str(row.get("question", ""))
   response = str(row.get("answer", "")) if row.get("answer") else ""
@@ -39,9 +40,7 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
 
   async def _faithfulness():
     try:
-      result = await faithfulness_m.ascore(
-        user_input=user_input, response=response, retrieved_contexts=retrieved_contexts,
-      )
+      result = await faithfulness_m.ascore(user_input=user_input, response=response, retrieved_contexts=retrieved_contexts)
       return result.value
     except Exception as e:
       print(f"Faithfulness failed: {type(e).__name__}: {e}")
@@ -50,9 +49,7 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
 
   async def _context_recall():
     try:
-      result = await context_recall_m.ascore(
-        user_input=user_input, retrieved_contexts=retrieved_contexts, reference=reference,
-      )
+      result = await context_recall_m.ascore(user_input=user_input, retrieved_contexts=retrieved_contexts, reference=reference)
       return result.value
     except Exception as e:
       print(f"ContextRecall failed: {type(e).__name__}: {e}")
@@ -61,9 +58,7 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
 
   async def _context_precision():
     try:
-      result = await context_precision_m.ascore(
-        user_input=user_input, reference=reference, retrieved_contexts=retrieved_contexts,
-      )
+      result = await context_precision_m.ascore(user_input=user_input, reference=reference, retrieved_contexts=retrieved_contexts)
       return result.value
     except Exception as e:
       print(f"ContextPrecision failed: {type(e).__name__}: {e}")
@@ -72,18 +67,14 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
 
   async def _answer_relevancy():
     try:
-      result = await answer_relevancy_m.ascore(
-        user_input=user_input, response=response,
-      )
+      result = await answer_relevancy_m.ascore(user_input=user_input, response=response)
       return result.value
     except Exception as e:
       print(f"AnswerRelevancy failed: {type(e).__name__}: {e}")
       print(traceback.format_exc())
       return np.nan
 
-  faith, recall, precision, relevancy = await asyncio.gather(
-    _faithfulness(), _context_recall(), _context_precision(), _answer_relevancy()
-  )
+  faith, recall, precision, relevancy = await asyncio.gather(_faithfulness(), _context_recall(), _context_precision(), _answer_relevancy())
 
   return {
     "faithfulness": faith,
@@ -91,10 +82,83 @@ async def score_sample(faithfulness_m, context_recall_m, context_precision_m, an
     "context_precision": precision,
     "answer_relevancy": relevancy,
   }
+# endregion
 
 
-# ── Main evaluation loop ──────────────────────────────────────────────────────
+# region NaN RAGAS-metric retry
+async def _retry_failed_metrics(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, per_question_file, leaderboard_file, eval_df):
+  with open(per_question_file, encoding="utf-8") as f:
+    pq_data = json.load(f)
 
+  to_retry = [
+    (i, metric)
+    for i, r in enumerate(pq_data)
+    for metric in _RAGAS_METRICS
+    if r.get(metric) != r.get(metric)  # nan != nan is True
+  ]
+
+  if not to_retry:
+    print("\nNo NaN metric scores to retry.")
+    return
+
+  print(f"\nRetrying {len(to_retry)} NaN metric score(s)...")
+  updated_configs: set[str] = set()
+
+  for idx, metric in to_retry:
+    row = pq_data[idx]
+    config = row["Configuration"]
+    question_id = row["question_id"]
+
+    match = eval_df[(eval_df["Configuration"] == config) & (eval_df["question_id"] == question_id)]
+    if match.empty:
+      print(f"  ! Could not find original data for {config} | {question_id}, skipping.")
+      continue
+
+    orig = match.iloc[0]
+    user_input = str(orig.get("question", ""))
+    response = str(orig.get("answer", "")) if orig.get("answer") else ""
+    retrieved_contexts = [str(c) for c in (orig.get("contexts") or [])]
+    reference = str(orig.get("ground_truth", "")) if orig.get("ground_truth") else ""
+
+    scorers = {
+      "faithfulness":      lambda: faithfulness_m.ascore(user_input=user_input, response=response, retrieved_contexts=retrieved_contexts),
+      "context_recall":    lambda: context_recall_m.ascore(user_input=user_input, retrieved_contexts=retrieved_contexts, reference=reference),
+      "context_precision": lambda: context_precision_m.ascore(user_input=user_input, reference=reference, retrieved_contexts=retrieved_contexts),
+      "answer_relevancy":  lambda: answer_relevancy_m.ascore(user_input=user_input, response=response),
+    }
+
+    print(f"  Retrying {metric} for {config} | {question_id} ...")
+    try:
+      result = await scorers[metric]()
+      pq_data[idx][metric] = result.value
+      print(f"  -> {metric} = {result.value:.4f}")
+      updated_configs.add(config)
+    except Exception as e:
+      print(f"  ! Still failed: {type(e).__name__}: {e}")
+
+  with open(per_question_file, "w", encoding="utf-8") as f:
+    json.dump(pq_data, f, ensure_ascii=False, indent=2)
+  print(f"Saved updated {per_question_file}")
+
+  if updated_configs:
+    leaderboard_df = pd.read_csv(leaderboard_file, sep=";")
+    pq_df = pd.DataFrame(pq_data)
+
+    for config in updated_configs:
+      subset = pq_df[pq_df["Configuration"] == config]
+      mask = leaderboard_df["Configuration"] == config
+      for metric, lb_col in _LEADERBOARD_METRIC_COLS.items():
+        if lb_col in leaderboard_df.columns:
+          new_mean = round(subset[metric].mean(), 4)
+          leaderboard_df.loc[mask, lb_col] = new_mean
+          print(f"  Updated leaderboard: {config} -> {lb_col} = {new_mean}")
+
+    leaderboard_df.to_csv(leaderboard_file, index=False, sep=";")
+    print(f"Saved updated {leaderboard_file}")
+# endregion
+
+
+# region Main evaluation loop
 async def evaluate_results():
   input_file = "evaluation/results/evaluation_dataset.json"
   per_question_file = "evaluation/results/per_question_scores.json"
@@ -136,7 +200,7 @@ async def evaluate_results():
   already_done = {row["Configuration"] for row in existing_leaderboard}
 
   llm_client = AsyncOpenAI(base_url=_EVAL_BASE_URL, api_key=os.environ[_EVAL_API_KEY_ENV])
-  evaluator_llm = llm_factory(_EVAL_MODEL, provider="openai", client=llm_client)
+  evaluator_llm = llm_factory(_EVAL_MODEL, provider="openai", client=llm_client, max_tokens=8192)
   evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
   faithfulness_m = Faithfulness(llm=evaluator_llm)
@@ -199,13 +263,15 @@ async def evaluate_results():
     pd.DataFrame(existing_leaderboard).to_csv(leaderboard_file, index=False, sep=";")
     print(f"  Updated leaderboard ({len(existing_leaderboard)} configs so far)")
 
+  await _retry_failed_metrics(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, per_question_file, leaderboard_file, df)
+
   print(f"\nSaved {len(existing_pq)} per-question score rows to {per_question_file}")
   print(f"Leaderboard saved to {leaderboard_file}")
 
   df_leaderboard = pd.DataFrame(existing_leaderboard)
   print("\n--- Leaderboard Summary ---")
   print(df_leaderboard.to_string())
-
+# endregion
 
 if __name__ == "__main__":
   setup_logging("ragas_eval")
