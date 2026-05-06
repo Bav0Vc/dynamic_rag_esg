@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List
+from typing import List, Optional
 from haystack import component, Document
 from haystack.dataclasses import SparseEmbedding
 
@@ -46,7 +46,7 @@ class BGEM3HybridDocumentEmbedder:
       batch_texts = texts[batch_start:batch_start + self.batch_size]
       batch_docs = documents[batch_start:batch_start + self.batch_size]
 
-      output = self._model.encode(
+      output = self._model.encode_corpus(
         batch_texts,
         return_dense=True,
         return_sparse=True,
@@ -74,8 +74,9 @@ class BGEM3HybridTextEmbedder:
   Connects directly to QdrantHybridRetriever via query_embedding + query_sparse_embedding.
   """
 
-  def __init__(self, model_name: str = "BAAI/bge-m3"):
+  def __init__(self, model_name: str = "BAAI/bge-m3", query_instruction: Optional[str] = None):
     self.model_name = model_name
+    self.query_instruction = query_instruction or None  # treat "" as None
     self._model = None
 
   def warm_up(self):
@@ -93,14 +94,18 @@ class BGEM3HybridTextEmbedder:
       use_fp16 = torch.cuda.is_available()
     except ImportError:
       use_fp16 = False
-    self._model = BGEM3FlagModel(self.model_name, use_fp16=use_fp16)
+    self._model = BGEM3FlagModel(
+      self.model_name,
+      use_fp16=use_fp16,
+      query_instruction_for_retrieval=self.query_instruction,
+    )
 
   @component.output_types(embedding=List[float], sparse_embedding=SparseEmbedding)
   def run(self, text: str):
     if self._model is None:
       raise RuntimeError("warm_up() must be called before run().")
 
-    output = self._model.encode(
+    output = self._model.encode_queries(
       [text],
       return_dense=True,
       return_sparse=True,

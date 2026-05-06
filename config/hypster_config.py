@@ -24,9 +24,26 @@ def embedding_config(hp: HP):
     default="BAAI/bge-m3",
   )
 
+  # Instructions (query prefix, doc prefix).
+  # Prefixes are consumed by SentenceTransformers*Embedder for Snowflake and E5.
+  # BGE-M3 uses a custom FlagEmbedding-based embedder that encodes text directly — its entries are unused.
   _prefixes = {
-    "intfloat/multilingual-e5-large-instruct": ("query: ", "passage: "),
+    "intfloat/multilingual-e5-large-instruct": (
+        # E5-instruct expects "Instruct: {task}\nQuery: " for queries; documents need no prefix.
+        "Instruct: Given a question about ESG reporting and sustainability, retrieve the most relevant supporting passage\nQuery: ",
+        "",
+    ),
+    "Snowflake/snowflake-arctic-embed-l-v2.0": (
+        "Represent this sentence for searching relevant passages: ",
+        "",
+    ),
+    "BAAI/bge-m3": (
+        # Passed as query_instruction_for_retrieval to BGEM3FlagModel; applied via encode_queries().
+        "Given a question about ESG reporting and sustainability, retrieve the most relevant supporting passage: ",
+        "",  # document encoding needs no instruction
+    ),
   }
+  
   query_prefix, doc_prefix = _prefixes.get(model, ("", ""))
 
   _dims = {

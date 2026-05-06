@@ -88,7 +88,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
 
   if use_hybrid:
     # Single component produces both dense and sparse — 1 encode() call for BGE-M3.
-    query_pipe.add_component("text_embedder", BGEM3HybridTextEmbedder())
+    query_pipe.add_component("text_embedder", BGEM3HybridTextEmbedder(query_instruction=emb_cfg.get("query_prefix")))
     query_pipe.add_component("retriever", QdrantHybridRetriever(document_store=document_store))
     query_pipe.connect("text_embedder.embedding", "retriever.query_embedding")
     query_pipe.connect("text_embedder.sparse_embedding", "retriever.query_sparse_embedding")
