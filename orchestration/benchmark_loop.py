@@ -4,16 +4,11 @@ import pandas as pd
 from itertools import product
 from hypster import instantiate
 from scripts.logger import setup_logging
-from config.hypster_config import pipeline_config
+from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 from pipeline.query_pipeline import run_query_pipeline
 
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Configuration space axes
-CHUNKERS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter", "SemanticEmbeddingChunker"]
-EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
-LLMS = ["Gemma-3-27b-it", "Llama-3.3-70B-Instruct", "Mistral-Small-2603"]
 
 # Output paths
 _RESULTS_DIR = os.path.join(_PROJECT_ROOT, "evaluation", "results")
@@ -30,7 +25,7 @@ def run_benchmark() -> None:
   os.makedirs(_RESULTS_DIR, exist_ok=True)
 
   golden_dataset = load_golden_dataset()
-  combinations = list(product(CHUNKERS, EMBEDDERS, LLMS))
+  combinations = list(product(CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS))
   print(f"Starting benchmark: {len(combinations)} configurations × {len(golden_dataset)} questions.\n")
 
   all_results: list[dict] = []
@@ -41,7 +36,6 @@ def run_benchmark() -> None:
       "embedding.model": embedder_model,
       "llm.name": llm_name,
     }
-    # Instantiate config
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
 
     print(f"[{idx}/{len(combinations)}] {chunker_name} | {embedder_model} | {llm_name}")

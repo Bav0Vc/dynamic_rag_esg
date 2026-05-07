@@ -8,11 +8,11 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 class SemanticEmbeddingChunker:
   def __init__(
     self,
-    model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    model_name: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
     sentences_per_group: int = 3,
     percentile: float = 0.95,
     min_length: int = 50,
-    max_length: int = 300,
+    max_length: int = 200, # safe margin for truncation
     device: Optional[str] = None
   ):
     hf_logging.set_verbosity_error()

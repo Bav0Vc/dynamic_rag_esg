@@ -1,25 +1,23 @@
 from hypster import HP
 
+CHUNKER_OPTIONS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter", "SemanticEmbeddingChunker"]
+EMBEDDER_OPTIONS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
+LLM_OPTIONS = ["Gemma-3-27b-it", "Llama-3.3-70B-Instruct", "Mistral-Small-2603"]
+
+
 
 def chunking_config(hp: HP):
   chunker_name = hp.select(
-    [
-      "RecursiveCharacterSplitter",
-      "FixedSizeTokenSplitter",
-      "SemanticEmbeddingChunker"
-    ],
+    CHUNKER_OPTIONS,
     name="chunker_name",
     default="RecursiveCharacterSplitter",
   )
   return { "chunker_name": chunker_name }
 
+
 def embedding_config(hp: HP):
   model = hp.select(
-    [
-      "BAAI/bge-m3",
-      "Snowflake/snowflake-arctic-embed-l-v2.0",
-      "intfloat/multilingual-e5-large-instruct",
-    ],
+    EMBEDDER_OPTIONS,
     name="model",
     default="BAAI/bge-m3",
   )
@@ -66,6 +64,7 @@ def embedding_config(hp: HP):
     "doc_prefix": doc_prefix,
   }
 
+
 def llm_config(hp: HP):
   configs = {
     "Gemma-3-27b-it": {
@@ -84,10 +83,11 @@ def llm_config(hp: HP):
     },
   }
 
-  name = hp.select(list(configs.keys()), name="name", default="Gemma-3-27b-it")
+  name = hp.select(LLM_OPTIONS, name="name", default="Gemma-3-27b-it")
     
   # Merge the name key with the selected configuration dictionary
   return { "name": name, **configs[name] }
+
 
 def pipeline_config(hp: HP):
   chunking = hp.nest(chunking_config, name="chunking")

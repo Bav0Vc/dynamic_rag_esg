@@ -19,7 +19,7 @@ from pipeline.components.bge_m3_embedders import BGEM3HybridDocumentEmbedder
 # Document Store & Writer
 from hypster import instantiate
 from qdrant_client import QdrantClient
-from config.hypster_config import pipeline_config
+from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
@@ -27,9 +27,6 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 load_dotenv()
 
 _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
-
-_CHUNKERS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter", "SemanticEmbeddingChunker"]
-_EMBEDDERS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "intfloat/multilingual-e5-large-instruct"]
 _BGE_M3 = "BAAI/bge-m3"
 
 
@@ -90,7 +87,7 @@ def _free_semantic_chunker_gpu(chunker: SemanticEmbeddingChunker) -> None:
 
 
 def run_indexing(resume_from: int = 0) -> None:
-  combinations = list(product(_CHUNKERS, _EMBEDDERS))
+  combinations = list(product(CHUNKER_OPTIONS, EMBEDDER_OPTIONS))
 
   if resume_from == 0:
     print("Clearing entire Qdrant database...")
@@ -124,7 +121,7 @@ def run_indexing(resume_from: int = 0) -> None:
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
-      "llm.name": "Gemma-3-27b-it",  # LLM unused during indexing (valid default still required)
+      "llm.name": LLM_OPTIONS[0],  # LLM unused during indexing (valid default still required)
     }
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
     emb_cfg = config["embedding"]
