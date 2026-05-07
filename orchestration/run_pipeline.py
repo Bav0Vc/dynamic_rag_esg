@@ -1,15 +1,12 @@
 import os
 import sys
 import asyncio
-from itertools import product
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from scripts.logger import setup_logging
 from evaluation.ragas_eval import evaluate_results
 from orchestration.benchmark_loop import run_benchmark
 from pipeline.indexing_pipeline import run_indexing
-from evaluation.retry_failed_faithfulness import retry_failed
-
 
 load_dotenv()
 setup_logging("run_pipeline")
@@ -62,11 +59,6 @@ print("STEP 4: RAGAS evaluation")
 print("=" * 60)
 asyncio.run(evaluate_results())
 
-# ── Step 5: Retry failed faithfulness scores ─────────────────────────────────
-print("\n" + "=" * 60)
-print("STEP 5: Retry failed faithfulness scores")
-print("=" * 60)
-asyncio.run(retry_failed())
 
 print("\nPipeline finished successfully.")
 sys.exit()
