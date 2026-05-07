@@ -12,7 +12,7 @@ class SemanticEmbeddingChunker:
     sentences_per_group: int = 3,
     percentile: float = 0.95,
     min_length: int = 50,
-    max_length: int = 200, # safe margin for truncation
+    max_length: int = 250,
     device: Optional[str] = None
   ):
     hf_logging.set_verbosity_error()

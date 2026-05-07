@@ -10,8 +10,7 @@ MODELS = [
   "BAAI/bge-m3",
   "Snowflake/snowflake-arctic-embed-l-v2.0",
   "intfloat/multilingual-e5-large-instruct",
-  "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",  # RAGAS-evaluation: AnswerRelevancy evaluator (multilingual)
-  "sentence-transformers/all-MiniLM-L6-v2",                       # Semantic chunking: document embedder
+  "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",                       # Semantic chunking: document embedder
 ]
 
 for model_id in MODELS:
