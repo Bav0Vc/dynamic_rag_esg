@@ -89,9 +89,13 @@ def _free_semantic_chunker_gpu(chunker: SemanticEmbeddingChunker) -> None:
 def run_indexing(resume_from: int = 0) -> None:
   combinations = list(product(CHUNKER_OPTIONS, EMBEDDER_OPTIONS))
 
+  client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
+  # Eagerly verify the Qdrant connection before any expensive processing.
+  # Cloud free-tier clusters auto-pause; this also wakes a sleeping cluster.
+  client.get_collections()
+
   if resume_from == 0:
     print("Clearing entire Qdrant database...")
-    client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
     for c in client.get_collections().collections:
       print(f"  Deleting collection: {c.name}")
       client.delete_collection(c.name)
@@ -139,6 +143,9 @@ def run_indexing(resume_from: int = 0) -> None:
       embedding_dim=emb_cfg["dims"],
       use_sparse_embeddings=use_sparse,
       recreate_index=True,
+      timeout=300,
+      write_batch_size=50,
+      wait_result_from_api=False,
     )
 
     chunker = _make_chunker(chunker_name)
