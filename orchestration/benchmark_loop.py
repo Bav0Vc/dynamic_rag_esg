@@ -21,16 +21,31 @@ def load_golden_dataset() -> list:
   with open(path, "r", encoding="utf-8") as f:
     return json.load(f)
 
+def _load_existing_results() -> list[dict]:
+  if not os.path.exists(EVAL_DATASET_PATH):
+    return []
+  with open(EVAL_DATASET_PATH, "r", encoding="utf-8") as f:
+    return json.load(f)
+
+
 def run_benchmark() -> None:
   os.makedirs(_RESULTS_DIR, exist_ok=True)
 
   golden_dataset = load_golden_dataset()
   combinations = list(product(CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS))
+
+  all_results = _load_existing_results()
+  done_configs = {row["Configuration"] for row in all_results}
+  if done_configs:
+    print(f"Resuming: {len(done_configs)}/{len(combinations)} configurations already completed.")
   print(f"Starting benchmark: {len(combinations)} configurations × {len(golden_dataset)} questions.\n")
 
-  all_results: list[dict] = []
-
   for idx, (chunker_name, embedder_model, llm_name) in enumerate(combinations, start=1):
+    config_label = f"{chunker_name} | {embedder_model} | {llm_name}"
+    if config_label in done_configs:
+      print(f"[{idx}/{len(combinations)}] Skipping (done): {config_label}")
+      continue
+
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
