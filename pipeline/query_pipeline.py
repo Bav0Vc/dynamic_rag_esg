@@ -131,6 +131,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
           "expected_source": item["expected_source"],
           "reference_contexts": list(item.get("reference_contexts", {}).values()),
           "source_page": item.get("source_page"),
+          "acceptable_sources": item.get("acceptable_sources", []),
           "Configuration": config_label,
           "Chunker": chunker_name,
           "Embedder": embedder_model,
