@@ -173,14 +173,26 @@ async def evaluate_results():
 
   df = pd.DataFrame(data)
 
+  def _all_valid_sources(row) -> list[tuple[str, str]]:
+    """Returns (file, page) pairs for the primary source and all acceptable alternatives."""
+    primary = (str(row.get("expected_source", "")), str(row.get("source_page", "")))
+    alternatives = [
+      (str(s.get("file", "")), str(s.get("page", "")))
+      for s in (row.get("acceptable_sources") or [])
+    ]
+    return [primary] + alternatives
+
   df["source_attribution"] = df.apply(
-    lambda row: 1.0 if str(row.get("expected_source", "")) in str(row.get("answer", "")) else 0.0,
+    lambda row: 1.0 if any(
+      f and f in str(row.get("answer", ""))
+      for f, _ in _all_valid_sources(row)
+    ) else 0.0,
     axis=1,
   )
   df["citation_accuracy"] = df.apply(
-    lambda row: 1.0 if (
-      str(row.get("expected_source", "")) in str(row.get("answer", "")) and
-      str(row.get("source_page", "")) in str(row.get("answer", ""))
+    lambda row: 1.0 if any(
+      f and p and f in str(row.get("answer", "")) and p in str(row.get("answer", ""))
+      for f, p in _all_valid_sources(row)
     ) else 0.0,
     axis=1,
   )
