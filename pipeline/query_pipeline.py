@@ -15,7 +15,7 @@ from pipeline.components.bge_m3_embedders import BGEM3HybridTextEmbedder
 load_dotenv()
 
 
-_PROMPT_TEMPLATE = """Answer the question based on the context. \
+_PROMPT_TEMPLATE = """Answer the question in Italian based on the context. \
 Also include the filename and page number or page name of the document containing the retrieved chunk, on a new line after the answer to the question. Output only in valid JSON.
 Context:
 {% for doc in documents %}
@@ -101,7 +101,7 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   results = []
   n_questions = len(golden_set)
   for q_idx, item in enumerate(golden_set, start=1):
-    q = item["answer"]["user_question"]
+    q = item["question"]
     for attempt in range(_MAX_RETRIES):
       try:
         start_time = time.time()
@@ -126,7 +126,6 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
         results.append({
           "question_id": item["question_id"],
           "question": q,
-          "requirement": item["question"],
           "ground_truth": item["ground_truth"],
           "expected_source": item["expected_source"],
           "reference_contexts": list(item.get("reference_contexts", {}).values()),
