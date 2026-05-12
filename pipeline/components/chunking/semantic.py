@@ -12,7 +12,8 @@ class SemanticEmbeddingChunker:
     sentences_per_group: int = 3,
     percentile: float = 0.95,
     min_length: int = 50,
-    max_length: int = 250,
+    max_length: int = 1623,
+    language="it",
     device: Optional[str] = None
   ):
     hf_logging.set_verbosity_error()
@@ -28,6 +29,7 @@ class SemanticEmbeddingChunker:
       percentile=percentile,
       min_length=min_length,
       max_length=max_length,
+      language=language,
     )
 
   # For GPU
