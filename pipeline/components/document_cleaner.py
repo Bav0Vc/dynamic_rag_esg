@@ -6,6 +6,9 @@ from haystack import component, Document
 
 _PAGE_MARKER = "<<<PAGE {}>>>"
 _PAGE_MARKER_RE = re.compile(r"<<<PAGE ([^>]+)>>>")
+# Chunks split mid-marker produce two fragments: "<<<PAGE" (open half) and "14>>>" (close half).
+_STRAY_OPEN_RE = re.compile(r"<<<PAGE[^>]*>*")  # "<<<PAGE", "<<<PAGE 14", "<<<PAGE 14>>" etc.
+_STRAY_CLOSE_RE = re.compile(r"^\d+>>>\s*")      # "14>>>" at the very start of a chunk
 
 
 @component
@@ -25,7 +28,10 @@ class ChunkMetaCleaner:
       content = doc.content or ""
 
       markers = _PAGE_MARKER_RE.findall(content)
-      clean = _PAGE_MARKER_RE.sub("", content).strip()
+      clean = _PAGE_MARKER_RE.sub("", content)
+      clean = _STRAY_OPEN_RE.sub("", clean)
+      clean = _STRAY_CLOSE_RE.sub("", clean)
+      clean = clean.strip()
 
       if not clean or clean in seen:
         continue

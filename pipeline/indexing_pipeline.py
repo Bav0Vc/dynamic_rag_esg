@@ -64,7 +64,7 @@ def _make_converter(unstructured_url: str) -> UnstructuredFileConverter:
       "skip_infer_table_types": [],
       # Disables expensive vision-model table detection for PDFs.
       # Excel table structure is preserved separately via DocumentCleaner._clean_text.
-      "pdf_infer_table_structure": False,
+      "pdf_infer_table_structure": True,
     },
   )
 

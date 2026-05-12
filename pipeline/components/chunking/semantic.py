@@ -9,7 +9,7 @@ class SemanticEmbeddingChunker:
   def __init__(
     self,
     model_name: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
-    sentences_per_group: int = 3,
+    sentences_per_group: int = 2,
     percentile: float = 0.95,
     min_length: int = 50,
     max_length: int = 1623,
@@ -19,8 +19,9 @@ class SemanticEmbeddingChunker:
     hf_logging.set_verbosity_error()
 
     self.embedder = SentenceTransformersDocumentEmbedder(
-      model=model_name, 
-      device=device
+      model=model_name,
+      device=device,
+      progress_bar=False,
     )
     
     self.splitter = EmbeddingBasedDocumentSplitter(
@@ -32,7 +33,6 @@ class SemanticEmbeddingChunker:
       language=language,
     )
 
-  # For GPU
   def warm_up(self):
     self.embedder.warm_up()
 
