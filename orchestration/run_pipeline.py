@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from scripts.logger import setup_logging
 from evaluation.ragas_eval import evaluate_results
-from orchestration.benchmark_loop import run_benchmark
 from pipeline.indexing_pipeline import run_indexing
+from orchestration.benchmark_loop import run_benchmark
 
 load_dotenv()
 setup_logging("run_pipeline")

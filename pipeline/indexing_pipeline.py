@@ -11,18 +11,17 @@ from pipeline.components.document_cleaner import DocumentCleaner, ChunkMetaClean
 from haystack_integrations.components.converters.unstructured import UnstructuredFileConverter
 # Chunking
 from pipeline.components.chunking.fixed import FixedSizeTokenSplitter
-from pipeline.components.chunking.recursive import RecursiveCharacterSplitter
 from pipeline.components.chunking.semantic import SemanticEmbeddingChunker
+from pipeline.components.chunking.recursive import RecursiveCharacterSplitter
 # Embedding
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from pipeline.components.bge_m3_embedders import BGEM3HybridDocumentEmbedder
+from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 # Document Store & Writer
 from hypster import instantiate
 from qdrant_client import QdrantClient
-from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-
+from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 
 load_dotenv()
 

@@ -5,7 +5,6 @@ EMBEDDER_OPTIONS = ["BAAI/bge-m3", "Snowflake/snowflake-arctic-embed-l-v2.0", "i
 LLM_OPTIONS = ["Gemma-3-27b-it", "Llama-3.3-70B-Instruct", "Mistral-Small-2603"]
 
 
-
 def chunking_config(hp: HP):
   chunker_name = hp.select(
     CHUNKER_OPTIONS,

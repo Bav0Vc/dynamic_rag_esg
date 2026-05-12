@@ -4,9 +4,8 @@ import pandas as pd
 from itertools import product
 from hypster import instantiate
 from scripts.logger import setup_logging
-from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 from pipeline.query_pipeline import run_query_pipeline
-
+from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

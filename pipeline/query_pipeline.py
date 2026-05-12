@@ -5,12 +5,11 @@ from dotenv import load_dotenv
 from haystack.utils import Secret
 from haystack.components.builders import PromptBuilder
 from haystack.components.generators import OpenAIGenerator
+from pipeline.components.bge_m3_embedders import BGEM3HybridTextEmbedder
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack_integrations.components.generators.mistral import MistralChatGenerator
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever, QdrantHybridRetriever
-from pipeline.components.bge_m3_embedders import BGEM3HybridTextEmbedder
-
 
 load_dotenv()
 

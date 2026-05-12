@@ -1,9 +1,8 @@
-import dataclasses
 import re
-from collections import defaultdict
+import dataclasses
 from pathlib import Path
+from collections import defaultdict
 from haystack import component, Document
-
 
 _PAGE_MARKER = "<<<PAGE {}>>>"
 _PAGE_MARKER_RE = re.compile(r"<<<PAGE ([^>]+)>>>")
