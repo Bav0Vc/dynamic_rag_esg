@@ -4,6 +4,8 @@ services:
     image: downloads.unstructured.io/unstructured-io/unstructured-api:latest
     ports:
       - '8000:8000'
+    environment:
+      - WORKERS=4
     healthcheck:
       test:
         [

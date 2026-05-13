@@ -189,6 +189,7 @@ async def evaluate_results():
     ) else 0.0,
     axis=1,
   )
+
   df["citation_accuracy"] = df.apply(
     lambda row: 1.0 if any(
       f and p and f in str(row.get("answer", "")) and p in str(row.get("answer", ""))
