@@ -21,7 +21,7 @@ from hypster import instantiate
 from qdrant_client import QdrantClient
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
-from config.hypster_config import pipeline_config, CHUNKER_OPTIONS, EMBEDDER_OPTIONS, LLM_OPTIONS
+from config.hypster_config import pipeline_config, EMBEDDER_OPTIONS, LLM_OPTIONS
 
 load_dotenv()
 
@@ -29,14 +29,19 @@ _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".xlsx"}
 _BGE_M3 = "BAAI/bge-m3"
 
 
-def _make_chunker(chunker_name: str):
+def _make_chunker(chunker_name: str, max_length: int | None = None):
   if chunker_name == "RecursiveCharacterSplitter":
     return RecursiveCharacterSplitter()
   if chunker_name == "FixedSizeTokenSplitter":
     return FixedSizeTokenSplitter()
   if chunker_name == "SemanticEmbeddingChunker":
-    return SemanticEmbeddingChunker()
+    return SemanticEmbeddingChunker(max_length=max_length) if max_length else SemanticEmbeddingChunker()
   raise ValueError(f"Unknown chunker: {chunker_name}")
+
+
+def _collection_name(chunker_name: str, embedder_model: str, llm_name: str | None = None) -> str:
+  suffix = f"_{llm_name}" if llm_name else ""
+  return f"{chunker_name}_{embedder_model}{suffix}".replace("/", "-").lower()
 
 
 def _make_doc_embedder(emb_cfg: dict):
@@ -85,8 +90,14 @@ def _free_semantic_chunker_gpu(chunker: SemanticEmbeddingChunker) -> None:
     pass
 
 
+_NON_SEMANTIC_CHUNKERS = ["RecursiveCharacterSplitter", "FixedSizeTokenSplitter"]
+_SEMANTIC_CHUNKER = "SemanticEmbeddingChunker"
+
+
 def run_indexing(resume_from: int = 0) -> None:
-  combinations = list(product(CHUNKER_OPTIONS, EMBEDDER_OPTIONS))
+  non_semantic_combos = [(c, e, None) for c, e in product(_NON_SEMANTIC_CHUNKERS, EMBEDDER_OPTIONS)]
+  semantic_combos = [(_SEMANTIC_CHUNKER, e, l) for e, l in product(EMBEDDER_OPTIONS, LLM_OPTIONS)]
+  all_combos = non_semantic_combos + semantic_combos  # 6 + 9 = 15
 
   client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
   # Eagerly verify the Qdrant connection before any expensive processing.
@@ -100,8 +111,9 @@ def run_indexing(resume_from: int = 0) -> None:
       client.delete_collection(c.name)
     print("Database cleared.\n")
   else:
-    chunker, embedder = combinations[resume_from]
-    print(f"Resuming from combination {resume_from + 1}/{len(combinations)}: {chunker} | {embedder}\n")
+    chunker_r, embedder_r, llm_r = all_combos[resume_from]
+    llm_str = f" | {llm_r}" if llm_r else ""
+    print(f"Resuming from combination {resume_from + 1}/{len(all_combos)}: {chunker_r} | {embedder_r}{llm_str}\n")
 
   raw_data_dir = Path(__file__).resolve().parent.parent / "data" / "raw"
   all_file_paths = [
@@ -117,22 +129,24 @@ def run_indexing(resume_from: int = 0) -> None:
 
   unstructured_url = os.getenv("UNSTRUCTURED_API_URL", "http://localhost:8000/general/v0/general")
 
-  for idx, (chunker_name, embedder_model) in enumerate(combinations):
+  for idx, (chunker_name, embedder_model, llm_name) in enumerate(all_combos):
     if idx < resume_from:
       continue
 
     overrides = {
       "chunking.chunker_name": chunker_name,
       "embedding.model": embedder_model,
-      "llm.name": LLM_OPTIONS[0],  # LLM unused during indexing (valid default still required)
+      "llm.name": llm_name or LLM_OPTIONS[0],
     }
     config = instantiate(pipeline_config, values=overrides, on_unknown="raise")
     emb_cfg = config["embedding"]
+    llm_cfg = config["llm"]
 
-    config_name = f"{chunker_name} | {embedder_model}"
-    print(f"Indexing config ({idx + 1}/{len(combinations)}): {config_name}")
+    llm_str = f" | {llm_name}" if llm_name else ""
+    config_name = f"{chunker_name} | {embedder_model}{llm_str}"
+    print(f"Indexing config ({idx + 1}/{len(all_combos)}): {config_name}")
 
-    collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
+    collection_name = _collection_name(chunker_name, embedder_model, llm_name)
     use_sparse = embedder_model == _BGE_M3
 
     document_store = QdrantDocumentStore(
@@ -147,7 +161,8 @@ def run_indexing(resume_from: int = 0) -> None:
       wait_result_from_api=False,
     )
 
-    chunker = _make_chunker(chunker_name)
+    max_char_length = llm_cfg.get("max_char_length") if llm_name else None
+    chunker = _make_chunker(chunker_name, max_length=max_char_length)
     embedder = _make_doc_embedder(emb_cfg)
 
     if chunker_name == "SemanticEmbeddingChunker":

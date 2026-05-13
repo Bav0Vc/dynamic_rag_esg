@@ -70,15 +70,18 @@ def llm_config(hp: HP):
       "backend": "hf",
       "api_model": "google/gemma-3-27b-it:scaleway",
       "api_base_url": "https://router.huggingface.co/v1",
+      "max_char_length": 1698,
     },
     "Llama-3.3-70B-Instruct": {
       "backend": "hf",
       "api_model": "meta-llama/Llama-3.3-70B-Instruct:ovhcloud",
       "api_base_url": "https://router.huggingface.co/v1",
+      "max_char_length": 1589,
     },
     "Mistral-Small-2603": {
       "backend": "mistral",
       "api_model": "mistral-small-2603",
+      "max_char_length": 1586,
     },
   }
 

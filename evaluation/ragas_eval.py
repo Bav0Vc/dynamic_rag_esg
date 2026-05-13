@@ -5,8 +5,10 @@ import traceback
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from openai import AsyncOpenAI
+
 from dotenv import load_dotenv
+import instructor
+from openai import AsyncOpenAI
 from ragas.llms import llm_factory
 from scripts.logger import setup_logging
 from ragas.embeddings import HuggingFaceEmbeddings
@@ -25,16 +27,34 @@ _LEADERBOARD_METRIC_COLS = {
 }
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "citation_accuracy", "prompt_tokens", "completion_tokens"]
 
-_EVAL_BASE_URL = os.environ.get("RAGAS_BASE_URL", "https://router.huggingface.co/featherless-ai/v1")
+_EVAL_BASE_URL = os.environ.get("RAGAS_BASE_URL", "https://router.huggingface.co/featherless-ai")
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
 _EVAL_MODEL = os.environ.get("RAGAS_MODEL", "Qwen/Qwen2.5-14B-Instruct")
 # endregion
 
 
+def _extract_answer_text(raw: str) -> str:
+  """Extract plain answer text from the two answer formats used in evaluation_dataset.json."""
+  raw = raw.strip()
+  if raw.startswith("```"):
+    inner = raw.strip("`").strip()
+    if inner.startswith("json"):
+      inner = inner[4:].strip()
+    try:
+      return json.loads(inner).get("answer", inner)
+    except Exception:
+      return inner
+  try:
+    parsed = json.loads(raw.split("\n")[0])
+    return parsed.get("risposta") or parsed.get("answer") or raw
+  except Exception:
+    return raw
+
+
 # region Per-sample RAGAS-metrics
 async def score_sample(faithfulness_m, context_recall_m, context_precision_m, answer_relevancy_m, row):
   user_input = str(row.get("question", ""))
-  response = str(row.get("answer", "")) if row.get("answer") else ""
+  response = _extract_answer_text(str(row.get("answer", ""))) if row.get("answer") else ""
   retrieved_contexts = [str(c) for c in (row.get("contexts") or [])]
   reference = str(row.get("ground_truth", "")) if row.get("ground_truth") else ""
 
@@ -214,6 +234,7 @@ async def evaluate_results():
 
   llm_client = AsyncOpenAI(base_url=_EVAL_BASE_URL, api_key=os.environ[_EVAL_API_KEY_ENV])
   evaluator_llm = llm_factory(_EVAL_MODEL, provider="openai", client=llm_client, max_tokens=8192)
+  evaluator_llm.client = instructor.from_openai(llm_client, mode=instructor.Mode.MD_JSON)
   evaluator_embeddings = HuggingFaceEmbeddings(model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
   faithfulness_m = Faithfulness(llm=evaluator_llm)

@@ -53,7 +53,8 @@ def run_query_pipeline(config: dict, golden_set: list) -> list:
   config_label = f"{chunker_name} | {embedder_model} | {llm_name}"
   print(f"Running config: {config_label}")
 
-  collection_name = f"{chunker_name}_{embedder_model}".replace("/", "-").lower()
+  llm_suffix = f"_{llm_name}" if chunker_name == "SemanticEmbeddingChunker" else ""
+  collection_name = f"{chunker_name}_{embedder_model}{llm_suffix}".replace("/", "-").lower()
   use_hybrid = embedder_model == "BAAI/bge-m3"
 
   document_store = QdrantDocumentStore(
