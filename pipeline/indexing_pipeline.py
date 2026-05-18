@@ -35,7 +35,7 @@ def _make_chunker(chunker_name: str, max_length: int | None = None):
   if chunker_name == "FixedSizeTokenSplitter":
     return FixedSizeTokenSplitter()
   if chunker_name == "SemanticEmbeddingChunker":
-    return SemanticEmbeddingChunker(max_length=max_length) if max_length else SemanticEmbeddingChunker()
+    return SemanticEmbeddingChunker(max_length=max_length)
   raise ValueError(f"Unknown chunker: {chunker_name}")
 
 
