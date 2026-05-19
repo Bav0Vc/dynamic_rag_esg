@@ -25,7 +25,7 @@ _LEADERBOARD_METRIC_COLS = {
   "context_precision": "Context Precision",
   "answer_relevancy": "Answer Relevancy",
 }
-_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "citation_accuracy", "prompt_tokens", "completion_tokens"]
+_META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "prompt_tokens", "completion_tokens"]
 
 _EVAL_BASE_URL = os.environ["RAGAS_BASE_URL"]
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
@@ -204,14 +204,6 @@ async def evaluate_results():
 
   df["source_attribution"] = df.apply(
     lambda row: 1.0 if any(
-      f and f in str(row.get("answer", ""))
-      for f, _ in _all_valid_sources(row)
-    ) else 0.0,
-    axis=1,
-  )
-
-  df["citation_accuracy"] = df.apply(
-    lambda row: 1.0 if any(
       f and p and f in str(row.get("answer", "")) and p in str(row.get("answer", ""))
       for f, p in _all_valid_sources(row)
     ) else 0.0,
@@ -286,7 +278,6 @@ async def evaluate_results():
       "LLM": subset.iloc[0]["LLM"],
       "Latency (s)": round(subset["latency"].mean(), 3),
       "Source Attribution": round(subset["source_attribution"].mean(), 2),
-      "Citation Accuracy": round(subset["citation_accuracy"].mean(), 2),
       "Faithfulness": _mean("faithfulness"),
       "Context Recall": _mean("context_recall"),
       "Context Precision": _mean("context_precision"),
