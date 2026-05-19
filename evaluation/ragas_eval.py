@@ -27,9 +27,9 @@ _LEADERBOARD_METRIC_COLS = {
 }
 _META_COLS = ["question_id", "Configuration", "Chunker", "Embedder", "LLM", "latency", "source_attribution", "citation_accuracy", "prompt_tokens", "completion_tokens"]
 
-_EVAL_BASE_URL = os.environ.get("RAGAS_BASE_URL", "https://router.huggingface.co/featherless-ai")
+_EVAL_BASE_URL = os.environ["RAGAS_BASE_URL"]
 _EVAL_API_KEY_ENV = "SCHOOL_API_KEY" if os.environ.get("SCHOOL_API_KEY") else "HF_TOKEN"
-_EVAL_MODEL = os.environ.get("RAGAS_MODEL", "Qwen/Qwen2.5-14B-Instruct")
+_EVAL_MODEL = os.environ["RAGAS_MODEL"]
 # endregion
 
 
